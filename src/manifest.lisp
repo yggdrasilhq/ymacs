@@ -5,7 +5,7 @@
 (in-package #:ymacs)
 
 (defun manifest-json (binary-path)
-  (format nil "{\"name\":\"ymacs\",\"label\":\"Ymacs\",\"icon\":\"📝\",\"binary\":\"~a\",\"verbs\":[{\"id\":\"new\",\"label\":\"New Ymacs\",\"args\":[]},{\"id\":\"new-scratch\",\"label\":\"New Ymacs (scratch)\",\"args\":[]}],\"keytip\":\"E\"}"
+  (format nil "{\"name\":\"ymacs\",\"label\":\"Ymacs\",\"icon\":\"📝\",\"binary\":\"~a\",\"verbs\":[{\"id\":\"new\",\"label\":\"New Ymacs\",\"args\":[]}],\"keytip\":\"E\"}"
           (json-escape-string binary-path)))
 
 (defun apps-dir ()
