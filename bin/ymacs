@@ -1,0 +1,15 @@
+#!/bin/sh
+# ymacs — launcher for SBCL image or interpreted mode
+# Prefers built binary at ~/.local/bin/ymacs-bin if present, else runs via sbcl --load
+set -e
+BIN="$HOME/.local/bin/ymacs-bin"
+if [ -x "$BIN" ]; then
+  exec "$BIN" "$@"
+fi
+# Interpreted fallback: load system via ASDF
+exec sbcl --noinform --disable-debugger --no-sysinit --no-userinit \
+  --eval '(require :asdf)' \
+  --eval '(push (truename ".") asdf:*central-registry*)' \
+  --eval '(push (truename "src/") asdf:*central-registry*)' \
+  --eval '(asdf:load-system :ymacs)' \
+  --eval '(ymacs:main)' -- "$@"

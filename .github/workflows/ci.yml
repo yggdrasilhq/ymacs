@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install SBCL
+        run: sudo apt-get update && sudo apt-get install -y sbcl
       - name: Validate License & Manifest
         run: |
           test -f LICENSE
@@ -20,4 +22,29 @@ jobs:
           test -f CLA-signatures.md
           test -f AGENTS.md
           test -f init.org
-          echo "All structural and licensing checks passed."
+          test -f src/ymacs.asd
+          test -f src/core/rope.lisp
+          test -f src/core/buffer.lisp
+          test -f src/surfaces/control-server.lisp
+          test -f src/elpa/use-package.lisp
+          test -f src/elpa/which-key.lisp
+          echo "Structural checks passed."
+      - name: SBCL Load Check
+        run: |
+          sbcl --noinform --disable-debugger --no-sysinit --no-userinit \
+            --eval '(require :asdf)' \
+            --eval '(push #P"./" asdf:*central-registry*)' \
+            --eval '(push #P"./src/" asdf:*central-registry*)' \
+            --eval '(asdf:load-system :ymacs)' \
+            --eval '(format t "ymacs ~a loaded~%" (asdf:component-version (asdf:find-system :ymacs)))' \
+            --quit
+      - name: Build Binary
+        run: |
+          sbcl --noinform --disable-debugger --no-sysinit --no-userinit --load build.lisp
+          test -x ymacs-bin
+          ./ymacs-bin --version
+          ./ymacs-bin --help
+      - name: Headless Verbs
+        run: |
+          timeout 5 ./ymacs-bin --help
+          echo "headless verbs ok"
