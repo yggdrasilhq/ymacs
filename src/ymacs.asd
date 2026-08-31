@@ -4,7 +4,7 @@
   :description "GNU Emacs fork on libyggterm in Common Lisp"
   :author "Avikalpa Kundu <avi@gour.top>"
   :license "GPL-3.0-or-later"
-  :version "0.1.0"
+  :version "0.1.1"
   :serial t
   :depends-on (:sb-bsd-sockets)
   :components ((:file "package")

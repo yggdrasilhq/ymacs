@@ -2,7 +2,7 @@
 
 (in-package #:ymacs)
 
-(defvar *ymacs-version* "0.1.0")
+(defvar *ymacs-version* "0.1.1")
 (defvar *daemon-url* nil)
 (defvar *startup-time* nil)
 
