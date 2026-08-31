@@ -6,9 +6,11 @@
   :license "GPL-3.0-or-later"
   :version "0.1.0"
   :serial t
+  :depends-on (:sb-bsd-sockets)
   :components ((:file "package")
                (:module "core"
-                :components ((:file "buffer")
+                :components ((:file "rope")
+                             (:file "buffer")
                              (:file "window")
                              (:file "sidebar")))
                (:module "surfaces"
@@ -17,5 +19,9 @@
                (:module "probes"
                 :components ((:file "ytrace")))
                (:module "elpa"
-                :components ((:file "compat")))
+                :components ((:file "compat")
+                             (:file "use-package")
+                             (:file "which-key")
+                             (:file "modern-helpers")
+                             (:file "deprecated")))
                (:file "main")))

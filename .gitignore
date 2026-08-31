@@ -7,3 +7,4 @@ target/
 .yggterm/
 *.log
 node_modules/
+ymacs-bin
