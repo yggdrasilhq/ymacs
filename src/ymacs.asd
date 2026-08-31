@@ -24,4 +24,5 @@
                              (:file "which-key")
                              (:file "modern-helpers")
                              (:file "deprecated")))
+               (:file "manifest")
                (:file "main")))
