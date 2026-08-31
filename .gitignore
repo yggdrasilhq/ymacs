@@ -1,0 +1,9 @@
+target/
+*.fasl
+*.dxl
+*.core
+*.o
+*.so
+.yggterm/
+*.log
+node_modules/

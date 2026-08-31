@@ -1,0 +1,23 @@
+{
+  "name": "@ygghq/ymacs",
+  "version": "0.1.0",
+  "description": "ymacs - GNU Emacs fork on libyggterm in Common Lisp",
+  "bin": {
+    "ymacs": "bin/ymacs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "docs/",
+    "init.org"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yggdrasilhq/ymacs.git"
+  },
+  "license": "GPL-3.0-or-later",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

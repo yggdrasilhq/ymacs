@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate License & Manifest
+        run: |
+          test -f LICENSE
+          test -f LICENSE-GFDL-1.3
+          test -f NOTICE
+          test -f CLA.md
+          test -f CLA-signatures.md
+          test -f AGENTS.md
+          test -f init.org
+          echo "All structural and licensing checks passed."

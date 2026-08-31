@@ -1,0 +1,102 @@
+#+TITLE: ymacs — The Literate Book of Configuration
+#+AUTHOR: Avikalpa Kundu
+#+STARTUP: showall
+#+PROPERTY: header-args:lisp :tangle yes
+
+* Introduction
+
+Welcome to the literate configuration book for *ymacs*.
+Unlike traditional monolithic or fragmented configuration files, ymacs is configured as an interactive book written in Org mode. Each chapter describes the design rationale, modern defaults, and executable Lisp forms that shape your editing universe.
+
+#+begin_src lisp
+;;; init.lisp --- Compiled from init.org -*- lexical-binding: t -*-
+(in-package :ymacs)
+#+end_src
+
+* Chapter I: The Core & Modern Defaults
+
+ymacs discards archaic defaults from the 1980s in favor of instant ergonomics, clean visuals, and responsive performance.
+
+** Sane Editor Behavior
+We enable UTF-8 everywhere, clean line wrapping, visual indentation, and smooth cursor movement.
+
+#+begin_src lisp
+(defparameter *editor-tab-width* 2)
+(defparameter *editor-line-numbers* :relative)
+(defparameter *editor-word-wrap* t)
+(defparameter *editor-auto-save-interval* 10) ; seconds
+#+end_src
+
+** Fast Startup & Memory Discipline
+Garbage collection pauses are monitored by ytrace and scheduled during idle periods.
+
+#+begin_src lisp
+(setf *gc-threshold-bytes* (* 64 1024 1024)) ; 64MB working threshold
+#+end_src
+
+* Chapter II: libyggterm Surface Integration
+
+ymacs takes full advantage of yggterm's generic surfaces protocol (OSC 7717).
+
+#+begin_src lisp
+(defun initialize-yggterm-surfaces ()
+  "Declare ymacs document and sidebar surfaces to the running yggterm daemon."
+  (when (yggterm-p)
+    (osc7717:declare-sidebar :panes '((:id "buffers" :title "Buffers" :icon "layers")
+                                      (:id "org-tree" :title "Outline" :icon "list-tree")
+                                      (:id "project"  :title "Files"   :icon "folder")))
+    (osc7717:open-document-surface :title (buffer-name (current-buffer)))))
+#+end_src
+
+* Chapter III: The Single-Sidebar Window System
+
+Unlike standard GNU Emacs which splits the main frame to show the =*Buffers*= list or speedbar, ymacs confines navigation to exactly **one** sidebar rail.
+
+#+begin_src lisp
+(defvar *active-sidebar-pane* "buffers"
+  "Current pane visible in the single ymacs sidebar. Max sidebar in view is 1.")
+
+(defun ymacs-toggle-sidebar (&optional pane)
+  "Toggle or switch the active sidebar pane. Closes if already open on the same pane."
+  (if (and (sidebar-visible-p) (or (null pane) (string= *active-sidebar-pane* pane)))
+      (despawn-sidebar)
+      (spawn-sidebar (or pane "buffers"))))
+#+end_src
+
+* Chapter IV: ELPA & MELPA Package Ecosystem
+
+We configure compatibility bridges to load standard Emacs packages seamlessly.
+
+#+begin_src lisp
+(defparameter *package-archives*
+  '(("gnu"   . "https://elpa.gnu.org/packages/")
+    ("melpa" . "https://melpa.org/packages/")))
+
+(defmacro use-package (package &rest body)
+  "Modern declarative package loader with async autoloading."
+  `(elpa:ensure-and-load ',package ',body))
+#+end_src
+
+* Chapter V: Deep Observability with ytrace
+
+Every buffer mutation, redisplay loop, and Lisp evaluation publishes telemetry to ytrace.
+
+#+begin_src lisp
+(ytrace:register-probe :ymacs-buffer-mutation
+  :description "Fires on buffer insertions, deletions, and line reflows"
+  :fields '(buffer-id operation length latency-us))
+
+(ytrace:register-probe :ymacs-redisplay-frame
+  :description "Measures time taken to construct and emit OSC 7717 schemas"
+  :fields '(frame-id widget-count render-latency-us))
+#+end_src
+
+* Epilogue: Agent Orchestration
+
+Autonomous agents can connect directly to the running ymacs REPL and query or manipulate buffer state.
+
+#+begin_src lisp
+(defun start-agent-rpc-endpoint (&key (port 7718))
+  "Start local loopback listener for yggterm agent buffer orchestration."
+  (ymacs-rpc:start-server :host "127.0.0.1" :port port))
+#+end_src
