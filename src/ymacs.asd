@@ -46,5 +46,6 @@
                 :components ((:file "keymap")
                              (:file "minibuffer")
                              (:file "modeline")))
+               (:file "full-emacs")
                (:file "manifest")
                (:file "main")))
