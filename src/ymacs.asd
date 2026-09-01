@@ -11,8 +11,10 @@
                (:module "core"
                 :components ((:file "rope")
                              (:file "buffer")
+                             (:file "session")
                              (:file "window")
-                             (:file "sidebar")))
+                             (:file "sidebar")
+                             (:file "window-manager")))
                (:module "surfaces"
                 :components ((:file "osc7717")
                              (:file "control-server")))
@@ -24,5 +26,25 @@
                              (:file "which-key")
                              (:file "modern-helpers")
                              (:file "deprecated")))
+               (:module "editing"
+                :components ((:file "undo")
+                             (:file "kill-ring")
+                             (:file "search")
+                             (:file "macro")
+                             (:file "folding")
+                             (:file "multiple-cursors")))
+               (:module "modes"
+                :components ((:file "fundamental")
+                             (:file "dired")
+                             (:file "org")
+                             (:file "lisp-mode")
+                             (:file "python-mode")
+                             (:file "c-mode")))
+               (:module "shell"
+                :components ((:file "eshell")))
+               (:module "ui"
+                :components ((:file "keymap")
+                             (:file "minibuffer")
+                             (:file "modeline")))
                (:file "manifest")
                (:file "main")))

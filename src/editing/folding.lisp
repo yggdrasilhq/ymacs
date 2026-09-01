@@ -1,0 +1,61 @@
+;;;; folding.lisp --- Code folding for ymacs
+
+(in-package #:ymacs)
+
+(defvar *folded-regions* (make-hash-table :test 'equal))
+
+(defun buffer-folded-p (buf start end)
+  (let ((regions (gethash (buffer-id buf) *folded-regions*)))
+    (find (cons start end) regions :test #'equal)))
+
+(defun fold-region (buf start end)
+  (push (cons start end) (gethash (buffer-id buf) *folded-regions*))
+  (when (null (gethash (buffer-id buf) *folded-regions*))
+    (setf (gethash (buffer-id buf) *folded-regions*) (list (cons start end))))
+  (fire-probe :ymacs-fold :buffer-id (buffer-id buf) :start start :end end)
+  (bump-document-version)
+  t)
+
+(defun unfold-region (buf start end)
+  (setf (gethash (buffer-id buf) *folded-regions*)
+        (remove (cons start end) (gethash (buffer-id buf) *folded-regions*) :test #'equal))
+  (bump-document-version)
+  t)
+
+(defun toggle-fold (buf)
+  (let* ((pt (buffer-point buf))
+         (content (buffer-content buf))
+         (line-start (or (position #\Newline content :end pt :from-end t) 0))
+         (line-end (or (position #\Newline content :start pt) (length content)))
+         (next-fold-end (or (position #\Newline content :start (1+ line-end)) (length content))))
+    (if (buffer-folded-p buf line-start next-fold-end)
+        (unfold-region buf line-start next-fold-end)
+        (fold-region buf line-start next-fold-end))))
+
+(defun fold-all (buf)
+  (let ((content (buffer-content buf)))
+    (loop for i from 0 below (length content)
+          when (and (char= (char content i) #\() (char= (char content (min (1+ i) (1- (length content)))) #\())
+          do (let ((end (position #\Newline content :start i)))
+               (when end (fold-region buf i end))))))
+
+(defun unfold-all (buf)
+  (setf (gethash (buffer-id buf) *folded-regions*) nil)
+  (bump-document-version)
+  t)
+
+(defun folded-content (buf)
+  (let ((content (buffer-content buf))
+        (regions (gethash (buffer-id buf) *folded-regions*)))
+    (if (null regions)
+        content
+        (let ((out (make-string-output-stream)) (pos 0))
+          (dolist (region (sort (copy-list regions) #'< :key #'car))
+            (let ((start (car region)) (end (cdr region)))
+              (when (< pos start)
+                (write-string (subseq content pos start) out))
+              (write-string " … " out)
+              (setf pos end)))
+          (when (< pos (length content))
+            (write-string (subseq content pos) out))
+          (get-output-stream-string out)))))
