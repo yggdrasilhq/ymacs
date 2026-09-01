@@ -194,18 +194,21 @@
   (let ((buf *current-buffer*))
     (if buf
         (let ((content (buffer-content buf))
-              (id (buffer-id buf)))
-          `(("title" . "ymacs")
+              (id (buffer-id buf))
+              (name (buffer-name buf))
+              (mod (if (buffer-modified-p buf) " — modified" "")))
+          `(("title" . ,(format nil "ymacs — ~a~a" name mod))
             ("widgets" . ,(vector
+                           `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines  •  ymacs 0.1.1" name mod (count-lines content))) ("muted" . t))
                            `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
                              ("line_numbers" . t) ("word_wrap" . t)
                              ("value" . ,content) ("value_key" . ,id)
-                             ("placeholder" . ";; ymacs buffer"))
+                             ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
                            `(("kind" . "toolbar") ("id" . "doc-toolbar")
                              ("buttons" . ,(vector
-                                            `(("action" . "save") ("label" . "💾") ("title" . "Save") ("primary" . ,(buffer-modified-p buf)))
-                                            `(("action" . "toggle-sidebar") ("label" . "🗂") ("title" . "Toggle Buffers"))
-                                            `(("action" . "which-key") ("label" . "⌨") ("title" . "Which Key")))))))))
+                                            `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
+                                            `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
+                                            `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key")))))))))
         `(("title" . "ymacs")
           ("widgets" . ,(vector
                          `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))

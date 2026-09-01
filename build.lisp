@@ -1,8 +1,9 @@
 ;;;; build.lisp --- Produce ymacs binary image via SBCL save-lisp-and-die
 (require :asdf)
 (require :sb-bsd-sockets)
-(push #P"./" asdf:*central-registry*)
-(push #P"./src/" asdf:*central-registry*)
+(let ((base (truename *default-pathname-defaults*)))
+  (push (merge-pathnames "src/" base) asdf:*central-registry*)
+  (push base asdf:*central-registry*))
 (asdf:load-system :ymacs)
 (format t "~&[build] Loaded ymacs ~a~%" (asdf:component-version (asdf:find-system :ymacs)))
 (format t "[build] Dumping image to ymacs-bin~%")

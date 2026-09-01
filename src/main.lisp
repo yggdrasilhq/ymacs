@@ -21,7 +21,23 @@
   (start-control-server)
   (which-key-register-modern-defaults)
   (modern-helpers-register-which-key)
-  (make-new-buffer "*scratch*" ";; ymacs scratch buffer --- Common Lisp + ELPA/MELPA")
+  (make-new-buffer "*scratch*" ";; ymacs 0.1.1 — GNU Emacs on libyggterm (SBCL/ECL, ytrace, vertico/consult/corfu)
+;; Welcome to ymacs — modern Emacs with sane defaults.
+
+;; Quick start:
+;;   C-x C-f  find file (vertico + consult)    C-x C-b  switch buffer
+;;   C-x C-s  save (revision guarded)         C-x C-k  kill buffer
+;;   C-c s    toggle Buffers sidebar          M-x      vertico command palette
+;;   which-key shows pending prefixes in the Which Key pane (rail)
+
+;; Buffers live in the single sidebar (max 1 pane) — no window clutter.
+;; Packages: (use-package vertico :ensure t :init (vertico-mode 1))
+;;           (use-package which-key :ensure t :config (which-key-mode 1))
+;; Discarded: ido/helm/ivy/company/linum — modern helpers replace them.
+;; See docs/elpa-melpa-compatibility.md and init.org (literate book).
+
+;; Try M-x eval: (+ 40 2)  — or open a file: ymacs ~/gh/ymacs/README.md
+")
   (when file
     (ignore-errors (open-file-buffer (pathname file))))
   (when config
