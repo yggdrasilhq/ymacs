@@ -2,7 +2,7 @@
 
 (in-package #:ymacs)
 
-(defvar *ymacs-version* "0.1.1")
+(defvar *ymacs-version* "0.1.2")
 (defvar *daemon-url* nil)
 (defvar *startup-time* nil)
 
@@ -21,7 +21,7 @@
   (start-control-server)
   (which-key-register-modern-defaults)
   (modern-helpers-register-which-key)
-  (make-new-buffer "*scratch*" ";; ymacs 0.1.1 — GNU Emacs on libyggterm (SBCL/ECL, ytrace, vertico/consult/corfu)
+  (make-new-buffer "*scratch*" ";; ymacs 0.1.2 — GNU Emacs on libyggterm (SBCL/ECL, ytrace, vertico/consult/corfu)
 ;; Welcome to ymacs — modern Emacs with sane defaults.
 
 ;; Quick start:
