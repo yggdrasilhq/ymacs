@@ -25,16 +25,20 @@
 ;;;
 ;;; A command's spec is the argument of its (interactive ...) form: either
 ;;; a string of parameter codes (Emacs-style subset) or a Lisp form.
-;;; Supported codes:
+;;; Each newline-separated line of a string spec is one parameter: the
+;;; first character is the CODE, the rest is its prompt. Supported codes:
 ;;;   P  raw prefix argument      p  prefix as number (default 1)
 ;;;   s  string                   S  non-empty string
 ;;;   f  file name                b  buffer name
 ;;;   n  number                   r  region (point mark) — two values
+;;;   c  character
 ;;; Any other code consumes one caller-supplied value.
-;;; When a caller (palette, key dispatch, macro replay, headless verb)
-;;; supplies ARGS, codes that would prompt consume the supplied values —
+;;;
+;;; SUPPLIED ARGS WIN: a caller (palette, key plane, macro replay,
+;;; headless verb) that supplies ARGS owns the parameter values in
+;;; order — the spec computes only what the caller did not supply, and
 ;;; prompts are never re-evaluated. That is what makes replay work
-;;; headless (the v0 recorder recorded nothing; this replaces it).
+;;; headless.
 
 (defvar *command-interactive-specs* (make-hash-table :test 'eq))
 
@@ -132,45 +136,58 @@ parameter — first character is the code, the rest is its prompt."
         do (setf start (1+ pos))))
 
 (defun compute-interactive-values (command args)
-  "Return the argument list for COMMAND from supplied ARGS, filling
-computable spec parameters (prefix, region) and consuming supplied
-values for prompting parameters. Signals MISSING-INTERACTIVE-ARGS when a
-prompting parameter has no supplied value (the palette or caller must
-supply them; macros always store the values)."
+  "Return the argument list for COMMAND. Supplied ARGS are consumed in
+parameter order; codes with nothing supplied either compute (prefix,
+region) or signal MISSING-INTERACTIVE-ARGS (a prompting parameter the
+caller must supply — the palette, or the stored values of a macro)."
   (let ((spec (gethash command *command-interactive-specs*))
         (queue (copy-list args))
         (out nil))
-    (labels ((string-param ()
+    (labels ((consume ()
+               (let ((v (first queue)))
+                 (push v out)
+                 (setf queue (rest queue))))
+             (must-consume ()
                (if queue
-                   (progn (push (first queue) out) (setf queue (rest queue)))
+                   (consume)
                    (error 'missing-interactive-args :command command))))
       (cond
         ;; Form spec: parameters must come supplied whole (never evaluate
         ;; prompts behind the caller's back).
         ((and (consp spec) (not (stringp spec)))
-         (dolist (a args) (push a out))
-         (when (and (null args) spec)
-           (error 'missing-interactive-args :command command)))
+         (if args
+             (dotimes (_ (length args)) (consume))
+             (error 'missing-interactive-args :command command)))
         ((stringp spec)
          (loop for line in (split-spec-lines spec)
                when (plusp (length line))
                  do (let ((code (char line 0)))
                       (case code
-                        (#\P (push *prefix-arg* out))
-                        (#\p (push (if *prefix-arg-given*
+                        (#\P
+                         (if queue (consume) (push *prefix-arg* out)))
+                        (#\p
+                         (if queue
+                             (consume)
+                             (push (if *prefix-arg-given*
                                        (typecase *prefix-arg*
                                          (number *prefix-arg*)
                                          (otherwise 1))
                                        1)
-                                   out))
-                        ((#\r) (if *current-buffer*
-                                   (let ((b *current-buffer*))
-                                     (push (buffer-mark b) out)
-                                     (push (buffer-point b) out))
-                                   (error 'missing-interactive-args :command command)))
-                        ((#\s #\S #\f #\F #\b #\B #\n #\e #\m) (string-param))
-                        (t (unless (char= code #\*) ; "*" flag: buffer-modified guard
-                             (string-param)))))))))
+                                   out)))
+                        (#\r
+                         (cond
+                           ((>= (length queue) 2)
+                            (consume) (consume))
+                           (*current-buffer*
+                            (push (buffer-mark *current-buffer*) out)
+                            (push (buffer-point *current-buffer*) out))
+                           (t
+                            (error 'missing-interactive-args :command command))))
+                        ((#\s #\S #\f #\F #\b #\B #\n #\e #\m #\c)
+                         (must-consume))
+                        (t
+                         (unless (char= code #\*) ; "*" flag: no parameter
+                           (must-consume)))))))))
     (nreverse out)))
 
 (defun command-execute (command &key args (record t))

@@ -196,10 +196,12 @@
         (let ((content (buffer-content buf))
               (id (buffer-id buf))
               (name (buffer-name buf))
-              (mod (if (buffer-modified-p buf) " — modified" "")))
+              (mod (if (buffer-modified-p buf) " — modified" ""))
+              (pending (key-sequence-string)))
           `(("title" . ,(format nil "ymacs — ~a~a" name mod))
+            ("key_capture" . t)
             ("widgets" . ,(vector
-                           `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines  •  ymacs 0.1.1" name mod (count-lines content))) ("muted" . t))
+                           `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
                            `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
                              ("line_numbers" . t) ("word_wrap" . t)
                              ("value" . ,content) ("value_key" . ,id)
@@ -210,6 +212,7 @@
                                             `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
                                             `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key")))))))))
         `(("title" . "ymacs")
+          ("key_capture" . t)
           ("widgets" . ,(vector
                          `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
                          `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane."))))))))
@@ -305,6 +308,11 @@
       ((and action (string= action "which-key"))
        (spawn-sidebar "which-key")
        `(("ok" . t) ("document_version" . ,(sidebar-document-version))))
+      ((and action (string= action "key"))
+       ;; The key plane (docs/spec-key-plane.md): one chord per POST,
+       ;; dispatched through the command layer, fresh schema in the reply.
+       (let ((chord (cdr (assoc "key" values-alist :test #'string=))))
+         (ymacs-handle-key (or chord ""))))
       ((and action (string= action "goto-line"))
        `(("ok" . t)))
       (t `(("ok" . t) ("document_version" . ,(document-version)))))))

@@ -46,7 +46,8 @@
                (:module "ui"
                 :components ((:file "keymap")
                              (:file "minibuffer")
-                             (:file "modeline")))
+                             (:file "modeline")
+                             (:file "keyboard")))
                (:file "full-emacs")
                (:file "manifest")
                (:file "main")))
