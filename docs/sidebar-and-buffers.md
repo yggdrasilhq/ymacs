@@ -1,5 +1,10 @@
 # Sidebar and Buffer Management
 
+> Design SSOT is [spec-primitives.md](spec-primitives.md) §1.2: the sidebar
+> is now a *window component* — its content is donated by the focused
+> window's major/minor modes (org: search + speed-nav; gdb: breakpoints).
+> Max ONE sidebar in view per frame stands.
+
 ## The Single-Sidebar Window System
 
 Traditional Emacs creates visual clutter by splitting the active editing window to display buffer lists (`*Buffers*`), file trees, and help documentation. `ymacs` enforces a clean, distraction-free model:

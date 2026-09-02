@@ -35,6 +35,12 @@ Do not introduce contradicting licence claims anywhere in this repository. All d
    - Unlike classic Emacs where `*Buffers*` splits the main editing pane, `ymacs` delegates buffer lists, project trees, and org outlines to a **libyggterm sidebar panel**.
    - **Maximum sidebar in view is ONE** (maintaining Emacs's focused frame discipline).
    - Sidebars can be dynamically spawned and despawned via keybindings or Lisp commands (`M-x ymacs-toggle-sidebar`).
+9. **Primitives Law (design SSOT — `docs/spec-primitives.md`):**
+   - Frame / Window / Buffer, with Window and Frame superpowers: windows carry component sets (sidebar body, command palette, mode-claimed titlebar segments); frames are yggterm rows; buffers' content model is owned by `emd-renderer` (the ASCII text surface belongs there, shared with yedit).
+   - **M-x macro law:** macros record command invocations with arguments — never palette/sidebar gestures; M-x replays headless.
+   - **Config law:** defaults in shipped `init.org`, user overrides ONLY in `~/.yggterm/ymacs/user.org`; theme tokens, no face proliferation; `M-x settings` opens the dual-window settings UI.
+   - **Divergences from Emacs are numbered** in `docs/emacs-manual/divergences.org` against the vendored Emacs manuals (`docs/emacs-manual/`, verbatim GFDL corpus — never edit those files in place).
+10. **Honesty law:** no README/manual claim without a status anchor (`docs/spec-primitives.md` §5). Volume is not progress; the audit above was caused by exactly that failure mode.
 
 ---
 

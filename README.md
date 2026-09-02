@@ -14,7 +14,7 @@
 `ymacs` reimagines the timeless power of Emacs on a modern, ultra-fast substrate:
 - **Common Lisp Core:** Compiled performance, true native multithreading, and interactive meta-programming on a modern Lisp runtime.
 - **libyggterm Integration:** Runs seamlessly inside `yggterm` desktop and remote terminal sessions via OSC 7717, leveraging high-performance visual document surfaces and sidebars.
-- **~90% ELPA & MELPA Compatibility:** Plug-and-play access to the vast Emacs Lisp package ecosystem.
+- **ELPA & MELPA Compatibility (target ~90%):** Plug-and-play access to the Emacs Lisp package ecosystem is the stated goal, measured against a public corpus — current depth is tracked honestly in [Status](docs/spec-primitives.md).
 - **Discard the Old:** No 1980s legacy clutter. Clean modern keymaps, instant sub-15ms startup, smart completion out of the box, and sensible defaults.
 - **Deep Observability:** Built-in `ytrace` dynamic probes for measuring redisplay cycles, evaluation latency, and buffer mutations.
 - **Bidirectional yggterm Orchestration:** Control yggterm terminals directly from Lisp forms, and let AI agents interact with live buffers deterministically.
@@ -53,12 +53,22 @@ ymacs --eval "(+ 40 2)"
 
 ---
 
+## Status (honest ledger — 2026-09-02)
+
+Verified by audit; details in [docs/spec-primitives.md §5](docs/spec-primitives.md).
+
+- **Real:** daemon/client split, OSC 7717 surfaces, control server, sidebar panes, rope buffer core with value_key persistence, kill-ring/undo/isearch modules, init.org tangle, headless `--eval` verbs, ytrace probes, CI.
+- **Skeleton / not yet real:** keystroke input plane, working macro recorder, projectile/magit/treemacs (name-only stubs), emd-renderer buffer ownership, frame=row, settings system.
+- **Design law for the rebuild:** [Primitives spec](docs/spec-primitives.md) — Frame/Window/Buffer with ymacs superpowers, M-x macro-safety law, config layering.
+
 ## Documentation
 
+- [Primitives Law (design SSOT)](docs/spec-primitives.md)
 - [Architecture Overview](docs/architecture.md)
 - [ELPA & MELPA Compatibility Guide](docs/elpa-melpa-compatibility.md)
 - [Sidebar and Buffer Management](docs/sidebar-and-buffers.md)
 - [Agent & Automation Contract](docs/agent-interaction.md)
+- [Manual](docs/manual.org) · [Vendored Emacs manuals](docs/emacs-manual/README.md) · [Divergence ledger](docs/emacs-manual/divergences.org)
 - [Literate Book Configuration](init.org)
 - [Agent Operating Contract](AGENTS.md)
 

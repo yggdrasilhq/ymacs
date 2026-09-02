@@ -1,0 +1,70 @@
+# ymacs Divergence Ledger
+
+One entry per deliberate divergence from GNU Emacs, or additive surface
+Emacs lacks. Each entry cites the Emacs manual node it relates to (node
+names match the vendored corpus in this directory).Law:
+[[file:spec-primitives.md][spec-primitives.md]] §6; manual markers cite
+these numbers.
+
+Format: number, status (planned/adopted), Emacs node, what and why, compat
+cost.
+
+* D1 — Discard duplicate completion interfaces [adopted]
+
+- Emacs node: (emacs) Minibuffer / ido, helm, ivy, company, linum
+- What: vertico/consult/orderless/marginalia/corfu are the blessed stack;
+  ido/helm/ivy/company/linum load with a diagnostic instead of silently
+  running.
+- Why: one modern path beats four legacy ones; sane-choices directive.
+- Compat cost: packages that hard-require the discarded interfaces fail
+  loudly at load (intended).
+
+* D2 — Configuration: init.org defaults + user.org overrides, theme
+  tokens instead of faces [adopted]
+
+- Emacs node: (emacs) Init File / Faces
+- What: defaults are the shipped literate ~init.org~; user edits go ONLY
+  to =~/.yggterm/ymacs/user.org~ (defaults ← overrides layering, VSCode
+  settings design). Themes are a small closed token set with a bounded
+  face→token shim; no per-face proliferation ships.
+- Why: Emacs's unbounded face system is the largest source of visual and
+  maintenance noise; a closed token set renders through yggterm themes.
+- Compat cost: packages setting faces get tokens, not exact faces.
+
+* D3 — Frames are yggterm rows [planned → primitives law §1.3]
+
+- Emacs node: (emacs) Frames / Graphical Frames
+- What: =make-frame= (=C-x 5 2=) spawns a new yggterm row (its own OSC
+  7717 surface) attached to the same daemon, instead of an OS window.
+  Remote frames are rows whose daemon is reachable over SSH.
+- Why: ymacs lives inside yggterm; the row IS the frame unit the host
+  already manages (titles, presence, attachment).
+- Compat cost: frame-manager APIs that assume X/Wayland windows map onto
+  row properties; exotic frame parameters are ignored.
+
+* D4 — Window components: sidebar, palette, titlebar segments [planned →
+  primitives law §1.2]
+
+- Emacs node: (emacs) Windows / Split Window; (emacs) Buffers of
+  =*Completions*=, =*Help*=
+- What: additive window-scoped surfaces — the sidebar (content donated by
+  the focused window's modes), the command palette (renders M-x and
+  completing-read UIs), mode-claimed titlebar segments. =display-buffer=
+  splitting remains honoured as parity fallback, but no ymacs facility
+  requires stealing viewport.
+- Why: Emacs pops and splits windows for UI that yggterm hosts as real
+  surfaces; components keep the viewport for the user's text.
+- Compat cost: none required of packages; UIs that assume a split-window
+  completion buffer still work via fallback.
+
+* D5 — Keyboard macros record command invocations, not key gestures
+  [planned → primitives law §3]
+
+- Emacs node: (emacs) Keyboard Macros
+- What: the macro record is a sequence of executed commands with
+  arguments; palette/sidebar interaction never enters the record; replay
+  is headless-capable.
+- Why: owner law — M-x through the palette must macro-replay with no
+  problems; UI-gesture recording would couple macros to widget state.
+- Compat cost: =insert-kbd-macro= emits the ymacs command-layer form
+  (readable, portable to ymacs only) instead of raw key vectors.

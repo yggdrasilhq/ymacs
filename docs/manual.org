@@ -1,1951 +1,216 @@
-#+TITLE: ymacs Manual — GNU Emacs on libyggterm
+#+TITLE: ymacs Manual
 #+AUTHOR: Avikalpa Kundu
 #+OPTIONS: toc:2 num:t
 
 * Introduction
 
-ymacs is a GNU Emacs fork on libyggterm written in Common Lisp (SBCL/ECL).
-It delivers modern Emacs with sane defaults, true concurrency, and deep
-ytrace observability, targeting ~90% ELPA/MELPA plug-and-play via modern
-helpers (vertico/consult/corfu) and discarding duplicate old interfaces
-(ido/helm/ivy/company/linum).
+ymacs is an Emacs-compatible editing environment built on libyggterm and
+implemented in Common Lisp (SBCL/ECL). Its goal is maximum Emacs
+compatibility with more surfaces than Emacs ships, configured the modern
+way: sane defaults in a shipped literate book (~init.org~), user overrides
+in one file (~user.org~).
 
-This manual is the literate book for ymacs — every chapter is prose plus
-executable Lisp blocks tangled via init.org.
+Design law lives in [[file:spec-primitives.md][spec-primitives.md]]. This manual tracks what is
+*implemented*. Chapters carry one of these markers:
 
-* Chapter 1: Installation and Startup
+- =[parity]= — behaves as Emacs does.
+- =[ymacs extension]= — an additive surface Emacs lacks.
+- =[divergence #N]= — a deliberate deviation, numbered in
+  =docs/emacs-manual/divergences.org=.
+
+* Chapter 1: Installation and Startup =[parity]= [status: implemented]
 
 ** Requirements
 
-- SBCL 2.6+ or ECL 24.5+ (SBCL primary, ECL fallback)
-- yggterm 3.2+ (for libyggterm surfaces)
-- ytrace (optional, for probes)
+- SBCL 2.6+ (primary) or ECL 24.5+
+- yggterm 3.2+ for libyggterm surfaces (works headless without)
 
-** Building
+** Build and install
 
 #+begin_src sh
 sbcl --load build.lisp
 ./install.sh
-ymacs --version  # 0.1.1, 6-8ms startup
+ymacs --version
 #+end_src
 
-** Fleet Install
+** Running
 
 #+begin_src sh
-scp ymacs-bin jojo:~/.local/bin/ymacs-bin
-scp bin/ymacs jojo:~/.local/bin/ymacs
-ssh jojo "~/.local/bin/ymacs --help"
+ymacs                # open the ymacs surface in yggterm (or headless host)
+ymacs file.org       # open file(s) into the daemon
+ymacs --eval "(+ 40 2)"
+ymacs --config ~/my-init.org
 #+end_src
 
-** First Run
+** Daemon and client =[parity with emacsclient]=
 
-#+begin_src lisp
-(ymacs:start)  ; 4-8ms, control at http://127.0.0.1:xxxxx
-#+end_src
-
-* Chapter 2: Buffers and Windows
-
-ymacs buffers are rope-backed (piecewise rope, 4k chunks) with value_key
-stability for concurrent edits. The single-sidebar rule (max 1 pane) keeps
-focus; tiles are optional for split views.
-
-** Buffer API
-
-- (make-new-buffer "*scratch*" "hello")
-- (open-file-buffer "/home/user/notes.org")
-- (buffer-insert buf pos text)
-- (buffer-delete buf pos len)
-- (buffer-save buf)
-- (kill-buffer id)
-
-** Window Management
-
-- (make-tile buffer) — create tiled window
-- (split-tile-horizontally tile)
-- (balance-tiles)
-
-* Chapter 3: Keymaps and Which-Key
-
-Global map + local maps per major mode. which-key shows pending prefixes
-in the Which Key rail pane.
-
-** Default Bindings
-
-| Key       | Command               |
-|-----------|-----------------------|
-| C-x C-f   | find-file (vertico)   |
-| C-x C-s   | save-buffer           |
-| C-x b     | consult-buffer        |
-| C-s       | isearch-forward       |
-| M-x       | execute-extended-command |
-| C-g       | keyboard-quit         |
-| C-/       | undo                  |
-| C-y       | yank                  |
-
-** Which-Key
-
-#+begin_src lisp
-(which-key-enable t)
-(which-key-register-prefix "C-x" '(("C-f" . "find file")))
-#+end_src
-
-* Chapter 4: Minibuffer and Completion
-
-Minibuffer uses vertico + consult + orderless + marginalia for modern
-completion. consult-buffer, consult-find, vertico-mode.
-
-* Chapter 5: Search and Replace
-
-- isearch-forward/backward with regexp and case-fold
-- query-replace
-- consult-line, consult-ripgrep (via ytrace)
-
-* Chapter 6: Major Modes
-
-** Fundamental, Lisp, Org, Python, C, Dired, Eshell
-
-Each mode defines keymap, syntax, hook. Auto-set via file extension.
-
-** Org Mode
-
-Headings, TODO, agenda, babel tangle.
-
-#+begin_src lisp
-(org-todo buf)
-(org-agenda)
-(org-babel-tangle)
-#+end_src
-
-** Lisp Mode
-
-REPL, slime-like eval, paren matching.
-
-* Chapter 7: Package Management
-
-Only =use-package= is blessed. Modern helpers are vertico/consult/corfu;
-old duplicates (ido/helm/ivy/company/linum) are discarded with diagnostic.
-
-#+begin_src lisp
-(ymacs-use-package vertico :ensure t :init (vertico-mode 1))
-(ymacs-use-package which-key :ensure t :config (which-key-mode 1))
-#+end_src
-
-* Chapter 8: Daemon and Surfaces
-
-Two-tier daemon/client (emacsclient model). Control via OSC 7717
-declare/heartbeat/close and TcpListener 127.0.0.1:0 with GET /ping,
-/pane/doc etc. Endpoint-ping liveness.
-
-* Chapter 9: Ytrace Probes
-
-In-process probes: startup, buffer-mutation, redisplay, sidebar, elpa,
-control, which-key, use-package, tile, fold, mc, session.
-
-* Chapter 10: Literate init.org
-
-Default config is init.org book with prose + (tangle) blocks.
-
-* Appendix: Keybinding Reference
-
-Extensive...
-
-
-** Section 0: Deep Dive 0
-
-This section details ymacs internals for topic 0. The rope engine
-handles edits at pos 0 with length 0. The ytrace probe
-:ymacs-topic-0 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-0 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-0 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 0")))
-#+end_src
-
-- Feature 0a: vertico integration point 0
-- Feature 0b: consult display for 0
-- Feature 0c: which-key prefix C-a
-
-
-** Section 1: Deep Dive 1
-
-This section details ymacs internals for topic 1. The rope engine
-handles edits at pos 10 with length 5. The ytrace probe
-:ymacs-topic-1 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-1 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-1 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 1")))
-#+end_src
-
-- Feature 1a: vertico integration point 1
-- Feature 1b: consult display for 1
-- Feature 1c: which-key prefix C-b
-
-
-** Section 2: Deep Dive 2
-
-This section details ymacs internals for topic 2. The rope engine
-handles edits at pos 20 with length 10. The ytrace probe
-:ymacs-topic-2 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-2 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-2 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 2")))
-#+end_src
-
-- Feature 2a: vertico integration point 2
-- Feature 2b: consult display for 2
-- Feature 2c: which-key prefix C-c
-
-
-** Section 3: Deep Dive 3
-
-This section details ymacs internals for topic 3. The rope engine
-handles edits at pos 30 with length 15. The ytrace probe
-:ymacs-topic-3 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-3 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-3 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 3")))
-#+end_src
-
-- Feature 3a: vertico integration point 3
-- Feature 3b: consult display for 3
-- Feature 3c: which-key prefix C-d
-
-
-** Section 4: Deep Dive 4
-
-This section details ymacs internals for topic 4. The rope engine
-handles edits at pos 40 with length 20. The ytrace probe
-:ymacs-topic-4 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-4 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-4 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 4")))
-#+end_src
-
-- Feature 4a: vertico integration point 4
-- Feature 4b: consult display for 4
-- Feature 4c: which-key prefix C-e
-
-
-** Section 5: Deep Dive 5
-
-This section details ymacs internals for topic 5. The rope engine
-handles edits at pos 50 with length 25. The ytrace probe
-:ymacs-topic-5 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-5 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-5 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 5")))
-#+end_src
-
-- Feature 5a: vertico integration point 5
-- Feature 5b: consult display for 5
-- Feature 5c: which-key prefix C-f
-
-
-** Section 6: Deep Dive 6
-
-This section details ymacs internals for topic 6. The rope engine
-handles edits at pos 60 with length 30. The ytrace probe
-:ymacs-topic-6 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-6 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-6 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 6")))
-#+end_src
-
-- Feature 6a: vertico integration point 6
-- Feature 6b: consult display for 6
-- Feature 6c: which-key prefix C-g
-
-
-** Section 7: Deep Dive 7
-
-This section details ymacs internals for topic 7. The rope engine
-handles edits at pos 70 with length 35. The ytrace probe
-:ymacs-topic-7 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-7 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-7 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 7")))
-#+end_src
-
-- Feature 7a: vertico integration point 7
-- Feature 7b: consult display for 7
-- Feature 7c: which-key prefix C-h
-
-
-** Section 8: Deep Dive 8
-
-This section details ymacs internals for topic 8. The rope engine
-handles edits at pos 80 with length 40. The ytrace probe
-:ymacs-topic-8 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-8 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-8 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 8")))
-#+end_src
-
-- Feature 8a: vertico integration point 8
-- Feature 8b: consult display for 8
-- Feature 8c: which-key prefix C-i
-
-
-** Section 9: Deep Dive 9
-
-This section details ymacs internals for topic 9. The rope engine
-handles edits at pos 90 with length 45. The ytrace probe
-:ymacs-topic-9 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-9 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-9 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 9")))
-#+end_src
-
-- Feature 9a: vertico integration point 9
-- Feature 9b: consult display for 9
-- Feature 9c: which-key prefix C-j
-
-
-** Section 10: Deep Dive 10
-
-This section details ymacs internals for topic 10. The rope engine
-handles edits at pos 100 with length 50. The ytrace probe
-:ymacs-topic-10 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-10 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-10 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 10")))
-#+end_src
-
-- Feature 10a: vertico integration point 10
-- Feature 10b: consult display for 10
-- Feature 10c: which-key prefix C-k
-
-
-** Section 11: Deep Dive 11
-
-This section details ymacs internals for topic 11. The rope engine
-handles edits at pos 110 with length 55. The ytrace probe
-:ymacs-topic-11 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-11 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-11 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 11")))
-#+end_src
-
-- Feature 11a: vertico integration point 11
-- Feature 11b: consult display for 11
-- Feature 11c: which-key prefix C-l
-
-
-** Section 12: Deep Dive 12
-
-This section details ymacs internals for topic 12. The rope engine
-handles edits at pos 120 with length 60. The ytrace probe
-:ymacs-topic-12 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-12 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-12 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 12")))
-#+end_src
-
-- Feature 12a: vertico integration point 12
-- Feature 12b: consult display for 12
-- Feature 12c: which-key prefix C-m
-
-
-** Section 13: Deep Dive 13
-
-This section details ymacs internals for topic 13. The rope engine
-handles edits at pos 130 with length 65. The ytrace probe
-:ymacs-topic-13 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-13 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-13 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 13")))
-#+end_src
-
-- Feature 13a: vertico integration point 13
-- Feature 13b: consult display for 13
-- Feature 13c: which-key prefix C-n
-
-
-** Section 14: Deep Dive 14
-
-This section details ymacs internals for topic 14. The rope engine
-handles edits at pos 140 with length 70. The ytrace probe
-:ymacs-topic-14 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-14 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-14 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 14")))
-#+end_src
-
-- Feature 14a: vertico integration point 14
-- Feature 14b: consult display for 14
-- Feature 14c: which-key prefix C-o
-
-
-** Section 15: Deep Dive 15
-
-This section details ymacs internals for topic 15. The rope engine
-handles edits at pos 150 with length 75. The ytrace probe
-:ymacs-topic-15 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-15 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-15 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 15")))
-#+end_src
-
-- Feature 15a: vertico integration point 15
-- Feature 15b: consult display for 15
-- Feature 15c: which-key prefix C-p
-
-
-** Section 16: Deep Dive 16
-
-This section details ymacs internals for topic 16. The rope engine
-handles edits at pos 160 with length 80. The ytrace probe
-:ymacs-topic-16 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-16 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-16 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 16")))
-#+end_src
-
-- Feature 16a: vertico integration point 16
-- Feature 16b: consult display for 16
-- Feature 16c: which-key prefix C-q
-
-
-** Section 17: Deep Dive 17
-
-This section details ymacs internals for topic 17. The rope engine
-handles edits at pos 170 with length 85. The ytrace probe
-:ymacs-topic-17 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-17 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-17 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 17")))
-#+end_src
-
-- Feature 17a: vertico integration point 17
-- Feature 17b: consult display for 17
-- Feature 17c: which-key prefix C-r
-
-
-** Section 18: Deep Dive 18
-
-This section details ymacs internals for topic 18. The rope engine
-handles edits at pos 180 with length 90. The ytrace probe
-:ymacs-topic-18 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-18 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-18 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 18")))
-#+end_src
-
-- Feature 18a: vertico integration point 18
-- Feature 18b: consult display for 18
-- Feature 18c: which-key prefix C-s
-
-
-** Section 19: Deep Dive 19
-
-This section details ymacs internals for topic 19. The rope engine
-handles edits at pos 190 with length 95. The ytrace probe
-:ymacs-topic-19 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-19 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-19 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 19")))
-#+end_src
-
-- Feature 19a: vertico integration point 19
-- Feature 19b: consult display for 19
-- Feature 19c: which-key prefix C-t
-
-
-** Section 20: Deep Dive 20
-
-This section details ymacs internals for topic 20. The rope engine
-handles edits at pos 200 with length 100. The ytrace probe
-:ymacs-topic-20 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-20 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-20 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 20")))
-#+end_src
-
-- Feature 20a: vertico integration point 20
-- Feature 20b: consult display for 20
-- Feature 20c: which-key prefix C-u
-
-
-** Section 21: Deep Dive 21
-
-This section details ymacs internals for topic 21. The rope engine
-handles edits at pos 210 with length 105. The ytrace probe
-:ymacs-topic-21 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-21 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-21 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 21")))
-#+end_src
-
-- Feature 21a: vertico integration point 21
-- Feature 21b: consult display for 21
-- Feature 21c: which-key prefix C-v
-
-
-** Section 22: Deep Dive 22
-
-This section details ymacs internals for topic 22. The rope engine
-handles edits at pos 220 with length 110. The ytrace probe
-:ymacs-topic-22 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-22 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-22 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 22")))
-#+end_src
-
-- Feature 22a: vertico integration point 22
-- Feature 22b: consult display for 22
-- Feature 22c: which-key prefix C-w
-
-
-** Section 23: Deep Dive 23
-
-This section details ymacs internals for topic 23. The rope engine
-handles edits at pos 230 with length 115. The ytrace probe
-:ymacs-topic-23 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-23 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-23 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 23")))
-#+end_src
-
-- Feature 23a: vertico integration point 23
-- Feature 23b: consult display for 23
-- Feature 23c: which-key prefix C-x
-
-
-** Section 24: Deep Dive 24
-
-This section details ymacs internals for topic 24. The rope engine
-handles edits at pos 240 with length 120. The ytrace probe
-:ymacs-topic-24 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-24 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-24 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 24")))
-#+end_src
-
-- Feature 24a: vertico integration point 24
-- Feature 24b: consult display for 24
-- Feature 24c: which-key prefix C-y
-
-
-** Section 25: Deep Dive 25
-
-This section details ymacs internals for topic 25. The rope engine
-handles edits at pos 250 with length 125. The ytrace probe
-:ymacs-topic-25 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-25 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-25 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 25")))
-#+end_src
-
-- Feature 25a: vertico integration point 25
-- Feature 25b: consult display for 25
-- Feature 25c: which-key prefix C-z
-
-
-** Section 26: Deep Dive 26
-
-This section details ymacs internals for topic 26. The rope engine
-handles edits at pos 260 with length 130. The ytrace probe
-:ymacs-topic-26 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-26 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-26 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 26")))
-#+end_src
-
-- Feature 26a: vertico integration point 26
-- Feature 26b: consult display for 26
-- Feature 26c: which-key prefix C-a
-
-
-** Section 27: Deep Dive 27
-
-This section details ymacs internals for topic 27. The rope engine
-handles edits at pos 270 with length 135. The ytrace probe
-:ymacs-topic-27 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-27 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-27 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 27")))
-#+end_src
-
-- Feature 27a: vertico integration point 27
-- Feature 27b: consult display for 27
-- Feature 27c: which-key prefix C-b
-
-
-** Section 28: Deep Dive 28
-
-This section details ymacs internals for topic 28. The rope engine
-handles edits at pos 280 with length 140. The ytrace probe
-:ymacs-topic-28 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-28 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-28 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 28")))
-#+end_src
-
-- Feature 28a: vertico integration point 28
-- Feature 28b: consult display for 28
-- Feature 28c: which-key prefix C-c
-
-
-** Section 29: Deep Dive 29
-
-This section details ymacs internals for topic 29. The rope engine
-handles edits at pos 290 with length 145. The ytrace probe
-:ymacs-topic-29 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-29 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-29 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 29")))
-#+end_src
-
-- Feature 29a: vertico integration point 29
-- Feature 29b: consult display for 29
-- Feature 29c: which-key prefix C-d
-
-
-** Section 30: Deep Dive 30
-
-This section details ymacs internals for topic 30. The rope engine
-handles edits at pos 300 with length 150. The ytrace probe
-:ymacs-topic-30 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-30 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-30 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 30")))
-#+end_src
-
-- Feature 30a: vertico integration point 30
-- Feature 30b: consult display for 30
-- Feature 30c: which-key prefix C-e
-
-
-** Section 31: Deep Dive 31
-
-This section details ymacs internals for topic 31. The rope engine
-handles edits at pos 310 with length 155. The ytrace probe
-:ymacs-topic-31 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-31 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-31 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 31")))
-#+end_src
-
-- Feature 31a: vertico integration point 31
-- Feature 31b: consult display for 31
-- Feature 31c: which-key prefix C-f
-
-
-** Section 32: Deep Dive 32
-
-This section details ymacs internals for topic 32. The rope engine
-handles edits at pos 320 with length 160. The ytrace probe
-:ymacs-topic-32 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-32 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-32 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 32")))
-#+end_src
-
-- Feature 32a: vertico integration point 32
-- Feature 32b: consult display for 32
-- Feature 32c: which-key prefix C-g
-
-
-** Section 33: Deep Dive 33
-
-This section details ymacs internals for topic 33. The rope engine
-handles edits at pos 330 with length 165. The ytrace probe
-:ymacs-topic-33 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-33 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-33 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 33")))
-#+end_src
-
-- Feature 33a: vertico integration point 33
-- Feature 33b: consult display for 33
-- Feature 33c: which-key prefix C-h
-
-
-** Section 34: Deep Dive 34
-
-This section details ymacs internals for topic 34. The rope engine
-handles edits at pos 340 with length 170. The ytrace probe
-:ymacs-topic-34 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-34 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-34 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 34")))
-#+end_src
-
-- Feature 34a: vertico integration point 34
-- Feature 34b: consult display for 34
-- Feature 34c: which-key prefix C-i
-
-
-** Section 35: Deep Dive 35
-
-This section details ymacs internals for topic 35. The rope engine
-handles edits at pos 350 with length 175. The ytrace probe
-:ymacs-topic-35 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-35 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-35 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 35")))
-#+end_src
-
-- Feature 35a: vertico integration point 35
-- Feature 35b: consult display for 35
-- Feature 35c: which-key prefix C-j
-
-
-** Section 36: Deep Dive 36
-
-This section details ymacs internals for topic 36. The rope engine
-handles edits at pos 360 with length 180. The ytrace probe
-:ymacs-topic-36 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-36 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-36 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 36")))
-#+end_src
-
-- Feature 36a: vertico integration point 36
-- Feature 36b: consult display for 36
-- Feature 36c: which-key prefix C-k
-
-
-** Section 37: Deep Dive 37
-
-This section details ymacs internals for topic 37. The rope engine
-handles edits at pos 370 with length 185. The ytrace probe
-:ymacs-topic-37 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-37 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-37 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 37")))
-#+end_src
-
-- Feature 37a: vertico integration point 37
-- Feature 37b: consult display for 37
-- Feature 37c: which-key prefix C-l
-
-
-** Section 38: Deep Dive 38
-
-This section details ymacs internals for topic 38. The rope engine
-handles edits at pos 380 with length 190. The ytrace probe
-:ymacs-topic-38 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-38 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-38 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 38")))
-#+end_src
-
-- Feature 38a: vertico integration point 38
-- Feature 38b: consult display for 38
-- Feature 38c: which-key prefix C-m
-
-
-** Section 39: Deep Dive 39
-
-This section details ymacs internals for topic 39. The rope engine
-handles edits at pos 390 with length 195. The ytrace probe
-:ymacs-topic-39 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-39 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-39 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 39")))
-#+end_src
-
-- Feature 39a: vertico integration point 39
-- Feature 39b: consult display for 39
-- Feature 39c: which-key prefix C-n
-
-
-** Section 40: Deep Dive 40
-
-This section details ymacs internals for topic 40. The rope engine
-handles edits at pos 400 with length 200. The ytrace probe
-:ymacs-topic-40 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-40 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-40 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 40")))
-#+end_src
-
-- Feature 40a: vertico integration point 40
-- Feature 40b: consult display for 40
-- Feature 40c: which-key prefix C-o
-
-
-** Section 41: Deep Dive 41
-
-This section details ymacs internals for topic 41. The rope engine
-handles edits at pos 410 with length 205. The ytrace probe
-:ymacs-topic-41 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-41 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-41 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 41")))
-#+end_src
-
-- Feature 41a: vertico integration point 41
-- Feature 41b: consult display for 41
-- Feature 41c: which-key prefix C-p
-
-
-** Section 42: Deep Dive 42
-
-This section details ymacs internals for topic 42. The rope engine
-handles edits at pos 420 with length 210. The ytrace probe
-:ymacs-topic-42 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-42 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-42 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 42")))
-#+end_src
-
-- Feature 42a: vertico integration point 42
-- Feature 42b: consult display for 42
-- Feature 42c: which-key prefix C-q
-
-
-** Section 43: Deep Dive 43
-
-This section details ymacs internals for topic 43. The rope engine
-handles edits at pos 430 with length 215. The ytrace probe
-:ymacs-topic-43 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-43 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-43 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 43")))
-#+end_src
-
-- Feature 43a: vertico integration point 43
-- Feature 43b: consult display for 43
-- Feature 43c: which-key prefix C-r
-
-
-** Section 44: Deep Dive 44
-
-This section details ymacs internals for topic 44. The rope engine
-handles edits at pos 440 with length 220. The ytrace probe
-:ymacs-topic-44 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-44 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-44 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 44")))
-#+end_src
-
-- Feature 44a: vertico integration point 44
-- Feature 44b: consult display for 44
-- Feature 44c: which-key prefix C-s
-
-
-** Section 45: Deep Dive 45
-
-This section details ymacs internals for topic 45. The rope engine
-handles edits at pos 450 with length 225. The ytrace probe
-:ymacs-topic-45 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-45 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-45 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 45")))
-#+end_src
-
-- Feature 45a: vertico integration point 45
-- Feature 45b: consult display for 45
-- Feature 45c: which-key prefix C-t
-
-
-** Section 46: Deep Dive 46
-
-This section details ymacs internals for topic 46. The rope engine
-handles edits at pos 460 with length 230. The ytrace probe
-:ymacs-topic-46 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-46 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-46 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 46")))
-#+end_src
-
-- Feature 46a: vertico integration point 46
-- Feature 46b: consult display for 46
-- Feature 46c: which-key prefix C-u
-
-
-** Section 47: Deep Dive 47
-
-This section details ymacs internals for topic 47. The rope engine
-handles edits at pos 470 with length 235. The ytrace probe
-:ymacs-topic-47 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-47 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-47 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 47")))
-#+end_src
-
-- Feature 47a: vertico integration point 47
-- Feature 47b: consult display for 47
-- Feature 47c: which-key prefix C-v
-
-
-** Section 48: Deep Dive 48
-
-This section details ymacs internals for topic 48. The rope engine
-handles edits at pos 480 with length 240. The ytrace probe
-:ymacs-topic-48 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-48 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-48 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 48")))
-#+end_src
-
-- Feature 48a: vertico integration point 48
-- Feature 48b: consult display for 48
-- Feature 48c: which-key prefix C-w
-
-
-** Section 49: Deep Dive 49
-
-This section details ymacs internals for topic 49. The rope engine
-handles edits at pos 490 with length 245. The ytrace probe
-:ymacs-topic-49 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-49 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-49 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 49")))
-#+end_src
-
-- Feature 49a: vertico integration point 49
-- Feature 49b: consult display for 49
-- Feature 49c: which-key prefix C-x
+The first invocation spawns a daemon (the durable half: buffers, session,
+control endpoint). Subsequent invocations are clients that open surfaces
+and exit. =ymacs --close= closes this terminal's surface; the daemon
+survives, as with emacsclient.
 
+* Chapter 2: Buffers =[parity]= [status: core implemented]
 
-** Section 50: Deep Dive 50
+Buffers are rope-backed (piecewise rope, 4k chunks) with value_key
+identity for concurrent-edit safety. The full Emacs buffer contract
+(names, =*scratch*=, point/mark, modification state, kill-ring) is the
+compat target; today: create/open/save/kill, insert/delete, undo,
+kill-ring, isearch, folding.
 
-This section details ymacs internals for topic 50. The rope engine
-handles edits at pos 500 with length 250. The ytrace probe
-:ymacs-topic-50 fires with fields (buffer-id operation length).
+Per the primitives law the buffer's *content model* is an emd document
+owned by =emd-renderer=; plain text is the degenerate document. See
+Chapter 9.
 
-#+begin_src lisp
-(defun ymacs-topic-50 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-50 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 50")))
-#+end_src
-
-- Feature 50a: vertico integration point 50
-- Feature 50b: consult display for 50
-- Feature 50c: which-key prefix C-y
-
-
-** Section 51: Deep Dive 51
-
-This section details ymacs internals for topic 51. The rope engine
-handles edits at pos 510 with length 255. The ytrace probe
-:ymacs-topic-51 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-51 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-51 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 51")))
-#+end_src
-
-- Feature 51a: vertico integration point 51
-- Feature 51b: consult display for 51
-- Feature 51c: which-key prefix C-z
-
-
-** Section 52: Deep Dive 52
-
-This section details ymacs internals for topic 52. The rope engine
-handles edits at pos 520 with length 260. The ytrace probe
-:ymacs-topic-52 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-52 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-52 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 52")))
-#+end_src
-
-- Feature 52a: vertico integration point 52
-- Feature 52b: consult display for 52
-- Feature 52c: which-key prefix C-a
-
-
-** Section 53: Deep Dive 53
-
-This section details ymacs internals for topic 53. The rope engine
-handles edits at pos 530 with length 265. The ytrace probe
-:ymacs-topic-53 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-53 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-53 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 53")))
-#+end_src
-
-- Feature 53a: vertico integration point 53
-- Feature 53b: consult display for 53
-- Feature 53c: which-key prefix C-b
-
-
-** Section 54: Deep Dive 54
-
-This section details ymacs internals for topic 54. The rope engine
-handles edits at pos 540 with length 270. The ytrace probe
-:ymacs-topic-54 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-54 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-54 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 54")))
-#+end_src
-
-- Feature 54a: vertico integration point 54
-- Feature 54b: consult display for 54
-- Feature 54c: which-key prefix C-c
-
-
-** Section 55: Deep Dive 55
-
-This section details ymacs internals for topic 55. The rope engine
-handles edits at pos 550 with length 275. The ytrace probe
-:ymacs-topic-55 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-55 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-55 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 55")))
-#+end_src
-
-- Feature 55a: vertico integration point 55
-- Feature 55b: consult display for 55
-- Feature 55c: which-key prefix C-d
-
-
-** Section 56: Deep Dive 56
-
-This section details ymacs internals for topic 56. The rope engine
-handles edits at pos 560 with length 280. The ytrace probe
-:ymacs-topic-56 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-56 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-56 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 56")))
-#+end_src
-
-- Feature 56a: vertico integration point 56
-- Feature 56b: consult display for 56
-- Feature 56c: which-key prefix C-e
-
-
-** Section 57: Deep Dive 57
-
-This section details ymacs internals for topic 57. The rope engine
-handles edits at pos 570 with length 285. The ytrace probe
-:ymacs-topic-57 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-57 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-57 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 57")))
-#+end_src
-
-- Feature 57a: vertico integration point 57
-- Feature 57b: consult display for 57
-- Feature 57c: which-key prefix C-f
-
-
-** Section 58: Deep Dive 58
-
-This section details ymacs internals for topic 58. The rope engine
-handles edits at pos 580 with length 290. The ytrace probe
-:ymacs-topic-58 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-58 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-58 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 58")))
-#+end_src
-
-- Feature 58a: vertico integration point 58
-- Feature 58b: consult display for 58
-- Feature 58c: which-key prefix C-g
-
-
-** Section 59: Deep Dive 59
-
-This section details ymacs internals for topic 59. The rope engine
-handles edits at pos 590 with length 295. The ytrace probe
-:ymacs-topic-59 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-59 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-59 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 59")))
-#+end_src
-
-- Feature 59a: vertico integration point 59
-- Feature 59b: consult display for 59
-- Feature 59c: which-key prefix C-h
-
-
-** Section 60: Deep Dive 60
-
-This section details ymacs internals for topic 60. The rope engine
-handles edits at pos 600 with length 300. The ytrace probe
-:ymacs-topic-60 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-60 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-60 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 60")))
-#+end_src
-
-- Feature 60a: vertico integration point 60
-- Feature 60b: consult display for 60
-- Feature 60c: which-key prefix C-i
-
-
-** Section 61: Deep Dive 61
-
-This section details ymacs internals for topic 61. The rope engine
-handles edits at pos 610 with length 305. The ytrace probe
-:ymacs-topic-61 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-61 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-61 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 61")))
-#+end_src
-
-- Feature 61a: vertico integration point 61
-- Feature 61b: consult display for 61
-- Feature 61c: which-key prefix C-j
-
-
-** Section 62: Deep Dive 62
-
-This section details ymacs internals for topic 62. The rope engine
-handles edits at pos 620 with length 310. The ytrace probe
-:ymacs-topic-62 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-62 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-62 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 62")))
-#+end_src
-
-- Feature 62a: vertico integration point 62
-- Feature 62b: consult display for 62
-- Feature 62c: which-key prefix C-k
-
-
-** Section 63: Deep Dive 63
-
-This section details ymacs internals for topic 63. The rope engine
-handles edits at pos 630 with length 315. The ytrace probe
-:ymacs-topic-63 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-63 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-63 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 63")))
-#+end_src
-
-- Feature 63a: vertico integration point 63
-- Feature 63b: consult display for 63
-- Feature 63c: which-key prefix C-l
-
-
-** Section 64: Deep Dive 64
-
-This section details ymacs internals for topic 64. The rope engine
-handles edits at pos 640 with length 320. The ytrace probe
-:ymacs-topic-64 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-64 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-64 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 64")))
-#+end_src
-
-- Feature 64a: vertico integration point 64
-- Feature 64b: consult display for 64
-- Feature 64c: which-key prefix C-m
-
-
-** Section 65: Deep Dive 65
-
-This section details ymacs internals for topic 65. The rope engine
-handles edits at pos 650 with length 325. The ytrace probe
-:ymacs-topic-65 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-65 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-65 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 65")))
-#+end_src
-
-- Feature 65a: vertico integration point 65
-- Feature 65b: consult display for 65
-- Feature 65c: which-key prefix C-n
-
-
-** Section 66: Deep Dive 66
-
-This section details ymacs internals for topic 66. The rope engine
-handles edits at pos 660 with length 330. The ytrace probe
-:ymacs-topic-66 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-66 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-66 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 66")))
-#+end_src
-
-- Feature 66a: vertico integration point 66
-- Feature 66b: consult display for 66
-- Feature 66c: which-key prefix C-o
-
-
-** Section 67: Deep Dive 67
-
-This section details ymacs internals for topic 67. The rope engine
-handles edits at pos 670 with length 335. The ytrace probe
-:ymacs-topic-67 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-67 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-67 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 67")))
-#+end_src
-
-- Feature 67a: vertico integration point 67
-- Feature 67b: consult display for 67
-- Feature 67c: which-key prefix C-p
-
-
-** Section 68: Deep Dive 68
-
-This section details ymacs internals for topic 68. The rope engine
-handles edits at pos 680 with length 340. The ytrace probe
-:ymacs-topic-68 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-68 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-68 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 68")))
-#+end_src
-
-- Feature 68a: vertico integration point 68
-- Feature 68b: consult display for 68
-- Feature 68c: which-key prefix C-q
-
-
-** Section 69: Deep Dive 69
-
-This section details ymacs internals for topic 69. The rope engine
-handles edits at pos 690 with length 345. The ytrace probe
-:ymacs-topic-69 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-69 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-69 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 69")))
-#+end_src
-
-- Feature 69a: vertico integration point 69
-- Feature 69b: consult display for 69
-- Feature 69c: which-key prefix C-r
-
-
-** Section 70: Deep Dive 70
-
-This section details ymacs internals for topic 70. The rope engine
-handles edits at pos 700 with length 350. The ytrace probe
-:ymacs-topic-70 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-70 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-70 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 70")))
-#+end_src
-
-- Feature 70a: vertico integration point 70
-- Feature 70b: consult display for 70
-- Feature 70c: which-key prefix C-s
-
-
-** Section 71: Deep Dive 71
-
-This section details ymacs internals for topic 71. The rope engine
-handles edits at pos 710 with length 355. The ytrace probe
-:ymacs-topic-71 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-71 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-71 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 71")))
-#+end_src
-
-- Feature 71a: vertico integration point 71
-- Feature 71b: consult display for 71
-- Feature 71c: which-key prefix C-t
+API: =(make-new-buffer name content)=, =(open-file-buffer path)=,
+=(buffer-insert buf pos text)=, =(buffer-delete buf pos len)=,
+=(buffer-save buf)=, =(kill-buffer id)=, =(buffer-list)=.
 
+* Chapter 3: Windows and Frames =[ymacs extension]= [status: planned → law]
 
-** Section 72: Deep Dive 72
+** Windows =[parity core]=
 
-This section details ymacs internals for topic 72. The rope engine
-handles edits at pos 720 with length 360. The ytrace probe
-:ymacs-topic-72 fires with fields (buffer-id operation length).
+Windows are tiles over buffers: split horizontally/vertically, balance,
+focus. Implemented at tile level; key-driven splitting lands with the
+input plane.
 
-#+begin_src lisp
-(defun ymacs-topic-72 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-72 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 72")))
-#+end_src
-
-- Feature 72a: vertico integration point 72
-- Feature 72b: consult display for 72
-- Feature 72c: which-key prefix C-u
-
-
-** Section 73: Deep Dive 73
-
-This section details ymacs internals for topic 73. The rope engine
-handles edits at pos 730 with length 365. The ytrace probe
-:ymacs-topic-73 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-73 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-73 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 73")))
-#+end_src
-
-- Feature 73a: vertico integration point 73
-- Feature 73b: consult display for 73
-- Feature 73c: which-key prefix C-v
-
-
-** Section 74: Deep Dive 74
-
-This section details ymacs internals for topic 74. The rope engine
-handles edits at pos 740 with length 370. The ytrace probe
-:ymacs-topic-74 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-74 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-74 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 74")))
-#+end_src
-
-- Feature 74a: vertico integration point 74
-- Feature 74b: consult display for 74
-- Feature 74c: which-key prefix C-w
-
-
-** Section 75: Deep Dive 75
-
-This section details ymacs internals for topic 75. The rope engine
-handles edits at pos 750 with length 375. The ytrace probe
-:ymacs-topic-75 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-75 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-75 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 75")))
-#+end_src
-
-- Feature 75a: vertico integration point 75
-- Feature 75b: consult display for 75
-- Feature 75c: which-key prefix C-x
-
-
-** Section 76: Deep Dive 76
-
-This section details ymacs internals for topic 76. The rope engine
-handles edits at pos 760 with length 380. The ytrace probe
-:ymacs-topic-76 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-76 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-76 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 76")))
-#+end_src
-
-- Feature 76a: vertico integration point 76
-- Feature 76b: consult display for 76
-- Feature 76c: which-key prefix C-y
-
-
-** Section 77: Deep Dive 77
-
-This section details ymacs internals for topic 77. The rope engine
-handles edits at pos 770 with length 385. The ytrace probe
-:ymacs-topic-77 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-77 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-77 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 77")))
-#+end_src
-
-- Feature 77a: vertico integration point 77
-- Feature 77b: consult display for 77
-- Feature 77c: which-key prefix C-z
-
-
-** Section 78: Deep Dive 78
-
-This section details ymacs internals for topic 78. The rope engine
-handles edits at pos 780 with length 390. The ytrace probe
-:ymacs-topic-78 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-78 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-78 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 78")))
-#+end_src
-
-- Feature 78a: vertico integration point 78
-- Feature 78b: consult display for 78
-- Feature 78c: which-key prefix C-a
-
-
-** Section 79: Deep Dive 79
-
-This section details ymacs internals for topic 79. The rope engine
-handles edits at pos 790 with length 395. The ytrace probe
-:ymacs-topic-79 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-79 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-79 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 79")))
-#+end_src
-
-- Feature 79a: vertico integration point 79
-- Feature 79b: consult display for 79
-- Feature 79c: which-key prefix C-b
-
-
-** Section 80: Deep Dive 80
-
-This section details ymacs internals for topic 80. The rope engine
-handles edits at pos 800 with length 400. The ytrace probe
-:ymacs-topic-80 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-80 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-80 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 80")))
-#+end_src
-
-- Feature 80a: vertico integration point 80
-- Feature 80b: consult display for 80
-- Feature 80c: which-key prefix C-c
-
-
-** Section 81: Deep Dive 81
-
-This section details ymacs internals for topic 81. The rope engine
-handles edits at pos 810 with length 405. The ytrace probe
-:ymacs-topic-81 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-81 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-81 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 81")))
-#+end_src
-
-- Feature 81a: vertico integration point 81
-- Feature 81b: consult display for 81
-- Feature 81c: which-key prefix C-d
-
-
-** Section 82: Deep Dive 82
-
-This section details ymacs internals for topic 82. The rope engine
-handles edits at pos 820 with length 410. The ytrace probe
-:ymacs-topic-82 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-82 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-82 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 82")))
-#+end_src
-
-- Feature 82a: vertico integration point 82
-- Feature 82b: consult display for 82
-- Feature 82c: which-key prefix C-e
-
-
-** Section 83: Deep Dive 83
+** Components — the ymacs window superpower
 
-This section details ymacs internals for topic 83. The rope engine
-handles edits at pos 830 with length 415. The ytrace probe
-:ymacs-topic-83 fires with fields (buffer-id operation length).
+A window carries a component set chosen by its buffer's major mode and
+the window's minor modes: sidebar body, command palette, titlebar
+segments, modeline. Buffer-local modes stay buffer-local (as Emacs);
+components are window-scoped and additive. Example: org-mode donates a
+search box + heading speed-nav to the sidebar; gdb-mode donates
+breakpoints/frames; the same buffer in two windows can show different
+component sets.
 
-#+begin_src lisp
-(defun ymacs-topic-83 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-83 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 83")))
-#+end_src
-
-- Feature 83a: vertico integration point 83
-- Feature 83b: consult display for 83
-- Feature 83c: which-key prefix C-f
-
-
-** Section 84: Deep Dive 84
-
-This section details ymacs internals for topic 84. The rope engine
-handles edits at pos 840 with length 420. The ytrace probe
-:ymacs-topic-84 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-84 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-84 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 84")))
-#+end_src
-
-- Feature 84a: vertico integration point 84
-- Feature 84b: consult display for 84
-- Feature 84c: which-key prefix C-g
-
-
-** Section 85: Deep Dive 85
-
-This section details ymacs internals for topic 85. The rope engine
-handles edits at pos 850 with length 425. The ytrace probe
-:ymacs-topic-85 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-85 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-85 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 85")))
-#+end_src
-
-- Feature 85a: vertico integration point 85
-- Feature 85b: consult display for 85
-- Feature 85c: which-key prefix C-h
-
-
-** Section 86: Deep Dive 86
-
-This section details ymacs internals for topic 86. The rope engine
-handles edits at pos 860 with length 430. The ytrace probe
-:ymacs-topic-86 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-86 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-86 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 86")))
-#+end_src
-
-- Feature 86a: vertico integration point 86
-- Feature 86b: consult display for 86
-- Feature 86c: which-key prefix C-i
-
-
-** Section 87: Deep Dive 87
-
-This section details ymacs internals for topic 87. The rope engine
-handles edits at pos 870 with length 435. The ytrace probe
-:ymacs-topic-87 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-87 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-87 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 87")))
-#+end_src
-
-- Feature 87a: vertico integration point 87
-- Feature 87b: consult display for 87
-- Feature 87c: which-key prefix C-j
-
-
-** Section 88: Deep Dive 88
-
-This section details ymacs internals for topic 88. The rope engine
-handles edits at pos 880 with length 440. The ytrace probe
-:ymacs-topic-88 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-88 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-88 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 88")))
-#+end_src
-
-- Feature 88a: vertico integration point 88
-- Feature 88b: consult display for 88
-- Feature 88c: which-key prefix C-k
+** Frames are yggterm rows =[ymacs extension]=
 
+=C-x 5 2= (=make-frame=) spawns a new yggterm row with its own surface,
+attached to the same daemon. Frame parameters map to row properties;
+=delete-frame= closes the row. Frames are cheap clients; the daemon owns
+state, exactly like emacsclient sessions.
 
-** Section 89: Deep Dive 89
+* Chapter 4: Command layer, M-x, and Macros =[parity]= [status: law, recorder bug known]
 
-This section details ymacs internals for topic 89. The rope engine
-handles edits at pos 890 with length 445. The ytrace probe
-:ymacs-topic-89 fires with fields (buffer-id operation length).
+** Named commands and M-x
 
-#+begin_src lisp
-(defun ymacs-topic-89 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-89 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 89")))
-#+end_src
-
-- Feature 89a: vertico integration point 89
-- Feature 89b: consult display for 89
-- Feature 89c: which-key prefix C-l
-
-
-** Section 90: Deep Dive 90
-
-This section details ymacs internals for topic 90. The rope engine
-handles edits at pos 900 with length 450. The ytrace probe
-:ymacs-topic-90 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-90 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-90 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 90")))
-#+end_src
-
-- Feature 90a: vertico integration point 90
-- Feature 90b: consult display for 90
-- Feature 90c: which-key prefix C-m
-
-
-** Section 91: Deep Dive 91
-
-This section details ymacs internals for topic 91. The rope engine
-handles edits at pos 910 with length 455. The ytrace probe
-:ymacs-topic-91 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-91 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-91 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 91")))
-#+end_src
-
-- Feature 91a: vertico integration point 91
-- Feature 91b: consult display for 91
-- Feature 91c: which-key prefix C-n
-
-
-** Section 92: Deep Dive 92
+Commands are named functions with interactive specs. =M-x= renders in the
+command palette (a window component fed by the command layer); completion
+is fuzzy. The palette is a *view* — the command layer is what executes.
 
-This section details ymacs internals for topic 92. The rope engine
-handles edits at pos 920 with length 460. The ytrace probe
-:ymacs-topic-92 fires with fields (buffer-id operation length).
+** Keyboard macros — the macro law
 
-#+begin_src lisp
-(defun ymacs-topic-92 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-92 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 92")))
-#+end_src
-
-- Feature 92a: vertico integration point 92
-- Feature 92b: consult display for 92
-- Feature 92c: which-key prefix C-o
-
-
-** Section 93: Deep Dive 93
-
-This section details ymacs internals for topic 93. The rope engine
-handles edits at pos 930 with length 465. The ytrace probe
-:ymacs-topic-93 fires with fields (buffer-id operation length).
-
-#+begin_src lisp
-(defun ymacs-topic-93 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-93 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 93")))
-#+end_src
-
-- Feature 93a: vertico integration point 93
-- Feature 93b: consult display for 93
-- Feature 93c: which-key prefix C-p
+Macros record *command invocations with arguments*, never UI gestures.
+Consequences: a macro recorded through M-x replays identically headless
+(=ymacs --eval=) with no surfaces at all, and palette UI changes can
+never break recorded macros.
 
+Bindings: =C-x (= start, =C-x )= end, =C-x e= execute last,
+=name-last-kbd-macro=, =insert-kbd-macro=.
 
-** Section 94: Deep Dive 94
+* Chapter 5: Keymaps and Completion =[parity]= [status: keymaps implemented, input plane planned]
 
-This section details ymacs internals for topic 94. The rope engine
-handles edits at pos 940 with length 470. The ytrace probe
-:ymacs-topic-94 fires with fields (buffer-id operation length).
+Global map + per-mode local maps. Pending prefixes display in which-key.
+Default bindings:
 
-#+begin_src lisp
-(defun ymacs-topic-94 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-94 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 94")))
-#+end_src
-
-- Feature 94a: vertico integration point 94
-- Feature 94b: consult display for 94
-- Feature 94c: which-key prefix C-q
-
-
-** Section 95: Deep Dive 95
+| Key     | Command                  |
+|---------+--------------------------|
+| C-x C-f | find-file                |
+| C-x C-s | save-buffer              |
+| C-x b   | switch-to-buffer         |
+| C-x k   | kill-buffer              |
+| C-s     | isearch-forward          |
+| M-x     | execute-extended-command |
+| C-g     | keyboard-quit            |
+| C-/     | undo                     |
+| C-y     | yank                     |
 
-This section details ymacs internals for topic 95. The rope engine
-handles edits at pos 950 with length 475. The ytrace probe
-:ymacs-topic-95 fires with fields (buffer-id operation length).
+Modern completion stack (vertico/consult/orderless/marginalia/corfu) is
+the blessed path; ido/helm/ivy/company/linum are discarded with a
+diagnostic (divergence #1).
 
-#+begin_src lisp
-(defun ymacs-topic-95 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-95 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 95")))
-#+end_src
-
-- Feature 95a: vertico integration point 95
-- Feature 95b: consult display for 95
-- Feature 95c: which-key prefix C-r
+* Chapter 6: Major Modes =[parity]= [status: skeletons]
 
+fundamental, lisp-mode, org-mode, python-mode, c-mode, dired, eshell —
+each defines a keymap, syntax table stub, and hook; auto-enabled by
+extension.
 
-** Section 96: Deep Dive 96
+** Org mode =[ymacs extension]=
 
-This section details ymacs internals for topic 96. The rope engine
-handles edits at pos 960 with length 480. The ytrace probe
-:ymacs-topic-96 fires with fields (buffer-id operation length).
+Org constructs become typed nodes in the emd document model; ymacs
+animates them: =org-cycle= folding, =org-todo= cycling, =org-babel-tangle=,
+agenda views. The sidebar gains org search + heading speed-nav when an
+org buffer has focus (component law, Chapter 3).
 
-#+begin_src lisp
-(defun ymacs-topic-96 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-96 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 96")))
-#+end_src
+* Chapter 7: Configuration =[divergence #2]= [status: init.org tangle implemented, user.org planned]
 
-- Feature 96a: vertico integration point 96
-- Feature 96b: consult display for 96
-- Feature 96c: which-key prefix C-s
+ymacs does not ship Emacs's faces. Defaults live in the shipped
+~init.org~ literate book; user edits go to =~/.yggterm/ymacs/user.org~
+only. Layering is defaults ← overrides (VSCode settings design). Themes
+are a small closed token set with a bounded =face→token= shim — face
+explosion is impossible by construction.
 
+=M-x settings= opens the dual-window settings system: sidebar = fast
+section navigation (Appearance, Editing, Keybindings, Modes, Packages,
+About), window = the selected settings document. Changing a setting
+writes the override to =user.org=, which stays hand-editable.
 
-** Section 97: Deep Dive 97
+* Chapter 8: Surfaces and Transport [status: implemented]
 
-This section details ymacs internals for topic 97. The rope engine
-handles edits at pos 970 with length 485. The ytrace probe
-:ymacs-topic-97 fires with fields (buffer-id operation length).
+Emacs concepts map to libyggterm surfaces:
 
-#+begin_src lisp
-(defun ymacs-topic-97 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-97 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 97")))
-#+end_src
+| Emacs thing        | ymacs surface                                |
+|--------------------+----------------------------------------------|
+| frame              | yggterm row (OSC 7717 declare)               |
+| window/viewport    | emd document surface (=placement: viewport=) |
+| sidebar components | =AppPaneRailBody= contributed pane           |
+| echo area          | footer widget                                |
+| completions buffer | command palette component                    |
 
-- Feature 97a: vertico integration point 97
-- Feature 97b: consult display for 97
-- Feature 97c: which-key prefix C-t
+Transport: OSC 7717 declare/heartbeat/close + loopback HTTP control
+server (=GET /ping=, =/pane/doc=, =/pane/buffers=, =/pane/which-key=,
+=/pane/outline=; =POST /open=, =/action=). Endpoint-ping liveness; stale
+URL files are distrusted and respawned.
 
+* Chapter 9: emd-renderer Buffer Ownership =[ymacs extension]= [status: planned]
 
-** Section 98: Deep Dive 98
+Buffers are emd documents. The ASCII text surface yedit uses moves into
+=emd-renderer= so ymacs, yedit, and future libyggterm apps share one
+render/edit engine. emd gains org-mode component extensibility (typed
+org nodes; unknown node fails loud). ymacs org mode animates those
+components — the same way Emacs org mode gives superpowers to its
+renderer.
 
-This section details ymacs internals for topic 98. The rope engine
-handles edits at pos 980 with length 490. The ytrace probe
-:ymacs-topic-98 fires with fields (buffer-id operation length).
+* Chapter 10: Agent and Headless Access [status: implemented]
 
-#+begin_src lisp
-(defun ymacs-topic-98 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-98 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 98")))
+#+begin_src sh
+ymacs --eval "(buffer-string)"
+ymacs --eval "(ymacs-verb-buffers-json)"
 #+end_src
 
-- Feature 98a: vertico integration point 98
-- Feature 98b: consult display for 98
-- Feature 98c: which-key prefix C-u
+Buffer edits carry value_key stability; agents never simulate keystrokes.
+See [[file:agent-interaction.md][agent-interaction.md]].
 
+* Chapter 11: ytrace Probes [status: implemented]
 
-** Section 99: Deep Dive 99
+In-process probes: =:ymacs-startup=, =:ymacs-buffer-mutation=,
+=:ymacs-tile=, =:ymacs-macro=, =:ymacs-elpa=, =:ymacs-control=, and more.
+Zero overhead dormant; deterministic when attached.
 
-This section details ymacs internals for topic 99. The rope engine
-handles edits at pos 990 with length 495. The ytrace probe
-:ymacs-topic-99 fires with fields (buffer-id operation length).
+* Appendix A: Divergence Ledger
 
-#+begin_src lisp
-(defun ymacs-topic-99 (buf)
-  (let ((content (buffer-content buf)))
-    (fire-probe :ymacs-topic-99 :buffer-id (buffer-id buf) :operation "test")
-    (buffer-insert buf 0 "topic 99")))
-#+end_src
+Deliberate deviations from Emacs are numbered and tracked in
+=docs/emacs-manual/divergences.org= with the Emacs manual node each one
+diverges from. The GNU Emacs manuals are vendored (Texinfo sources) under
+=docs/emacs-manual/= as the reference base.
 
-- Feature 99a: vertico integration point 99
-- Feature 99b: consult display for 99
-- Feature 99c: which-key prefix C-v
+Current ledger:
 
+- #1 — Discard ido/helm/ivy/company/linum in favor of the modern
+  completion stack.
+- #2 — Configuration is init.org defaults + user.org overrides with
+  theme tokens, not faces.
+- #3 — Frames are yggterm rows, not OS windows.
+- #4 — Window components (sidebar, palette, titlebar) are additive
+  surfaces Emacs lacks; =display-buffer= splitting remains as parity
+  fallback but no ymacs facility requires it.
