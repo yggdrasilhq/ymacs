@@ -208,6 +208,13 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
   MELPA" figure is a *target*, not a measurement; the manual's
   "Deep Dive N" appendix was template padding (removed with the
   2026-09-02 manual rewrite).
+- **Headless verbs fixed (2026-09-02):** the `--eval` client never
+  terminated its HTTP headers (POST format string lacked the blank
+  line before the body since the Tier-A commit) — every `ymacs --eval`
+  hung until killed; the daemon-spawn wait also grew 5s→15s because the
+  39MB core restore misses a 5s window on loaded hosts. Found while
+  live-verifying step 6; SBCL's compile-time format checker now holds
+  the arg count open.
 - **The rebuild order that satisfies this law** (next sessions):
   1. ~~Command layer~~ ✅ done.
   2. ~~Macro recorder at the command layer + headless replay test~~ ✅ done.
@@ -232,9 +239,29 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      JSON string values were not unescaped, signal handlers died on the
      first SIGHUP (1-arg lambda vs SBCL's 3-arg invocation), and
      run-daemon exited on a single loop error.
-  6. emd-renderer ownership: ASCII text surface moved into emd-renderer;
-     org typed nodes; ymacs org components (TODO cycle, checkbox,
-     headline sidebar nav).
+  6. emd-renderer ownership ✅ done (2026-09-02):
+     - The plain-text (ASCII) surface moved into `emd-renderer` as
+       `TextSurface` (libyggterm 3a74342): the degenerate one-block
+       document — byte-faithful splices, Emacs line math, loud
+       char-boundary failures. The Dioxus render of it stays in the
+       shell per that spec's own deferred seam (spec-emd-renderer §4,
+       migration item 4) — the MODEL is what no app may re-derive.
+     - Org constructs are typed nodes in `emd-renderer`'s `org` module
+       (headings with a keyword slot, src blocks, drawers, checkbox
+       items, tables, visible Text remainder; leaf ranges tile the
+       source; `cycle_todo`/`toggle_checkbox` splice byte-exactly).
+     - ymacs org mode animates the contract from the Lisp side
+       (line-addressed nodes, same parse decisions, contract-locked by
+       the same fixtures — tests/org-tests.lisp, 14 tests in CI):
+       org-todo cycles none→TODO→DONE→none through command-execute
+       (macro law holds), org-checkbox-toggle flips in place, C-c C-c
+       is contextual (checkbox else tangle), C-c C-n/C-p navigate,
+       the Outline sidebar rows are node-driven and goto-line moves
+       buffer point. Live-verified headless against the daemon:
+       TODO cycle end to end + checkbox toggle on a real file.
+     - Still v0 (honest): folding is point-motion only; agenda scans
+       lines, not nodes; workflow keywords are the stock TODO/DONE
+       pair until step 7's settings system carries user workflows.
   7. Settings system (schema org store, dual-window UI, user.org writer).
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).

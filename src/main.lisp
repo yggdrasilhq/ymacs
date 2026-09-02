@@ -85,8 +85,8 @@
                (host (first parts)) (port (parse-integer (second parts) :junk-allowed t)))
           (sb-bsd-sockets:socket-connect sock (sb-bsd-sockets:make-inet-address host) port)
           (let ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t :element-type 'character :external-format :utf-8)))
-            (format stream "POST ~a HTTP/1.1~C~CHost: ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~a"
-                    path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (length body-json) #\Return #\Newline #\Return #\Newline body-json)
+            (format stream "POST ~a HTTP/1.1~C~CHost: ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
+                    path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (length body-json) #\Return #\Newline #\Return #\Newline #\Return #\Newline body-json)
             (force-output stream)
             (let* ((raw (with-output-to-string (out) (loop for ch = (read-char stream nil nil) while ch do (write-char ch out))))
                    (body (second (split-once raw (format nil "~C~C~C~C" #\Return #\Newline #\Return #\Newline)))))
@@ -116,14 +116,16 @@
          (home (ymacs-home)))
     (sb-ext:run-program "/bin/sh" (list "-c" (format nil "nohup ~a --daemon >~a/.yggterm/ymacs/daemon.log 2>&1 &" exe home))
                         :wait t :search t))
-  ;; Wait up to 5s for daemon to write and answer
-  (loop repeat 50 do
+  ;; Wait up to 15s for daemon to write and answer — the 39MB core
+  ;; restore takes >5s cold on loaded hosts (5s made every first --eval
+  ;; on a quiet box a coin flip).
+  (loop repeat 150 do
     (sleep 0.1)
     (when (probe-file (control-url-file))
       (let* ((url (string-trim '(#\Space #\Newline #\Return) (read-file-string (control-url-file)))))
         (when (and url (plusp (length url)) (ping-daemon url))
           (return url))))
-  finally (error "ymacs daemon did not come up within 5s")))
+  finally (error "ymacs daemon did not come up within 15s")))
 
 (defun run-daemon ()
   "Durable half: store + control endpoint, forever."

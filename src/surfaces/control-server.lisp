@@ -291,7 +291,14 @@ arrive RAW in the alist — this is the JSON contract, not an option."
   (let ((buf *current-buffer*))
     (if (and buf (buffer-content buf))
         (let* ((content (buffer-content buf))
-               (headings (extract-headings content)))
+               ;; Node-driven when the buffer is org-mode: the rows come
+               ;; from the typed org tree (step 6, spec-primitives §1.1) —
+               ;; level indent, workflow keyword, tags. Other buffers keep
+               ;; the legacy `*`-line extract.
+               (headings (if (and (buffer-major-mode buf)
+                                  (string= (buffer-major-mode buf) "org-mode"))
+                             (org-outline-rows content)
+                             (extract-headings content))))
           `(("title" . "Outline") ("widgets" . ,(coerce (mapcar (lambda (h) `(("kind" . "list-row") ("id" . ,(car h)) ("title" . ,(cdr h)) ("row_action" . "goto-line"))) headings) 'vector))))
         `(("title" . "Outline") ("widgets" . ,(vector `(("kind" . "label") ("muted" . t) ("text" . "No outline"))))))))
 
@@ -408,5 +415,15 @@ arrive RAW in the alist — this is the JSON contract, not an option."
                      ("document_version" . ,(document-version)))))
              `(("ok" . nil) ("error" . "unreadable form")))))
       ((and action (string= action "goto-line"))
+       ;; Node-driven headline nav: the Outline rows carry the heading's
+       ;; 1-based line as their id; the nav MOVES BUFFER POINT (the
+       ;; buffer is the truth; pure motion never bumps the version).
+       (let* ((value (cdr (assoc "value" body-json :test #'string=)))
+              (n (and value (stringp value)
+                      (>= (length value) 5)
+                      (string= value "line-" :end1 5 :end2 5)
+                      (parse-integer value :start 5 :junk-allowed t))))
+         (when (and n *current-buffer*)
+           (org-goto-line *current-buffer* n)))
        `(("ok" . t)))
       (t `(("ok" . t) ("document_version" . ,(document-version)))))))
