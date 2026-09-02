@@ -130,10 +130,22 @@
   (restore-session)
   (let ((url (start-control-server)))
     (format t "~&[ymacs daemon] Control at ~a (~a)~%" url (sb-ext:posix-getenv "HOME"))
-    ;; Handle SIGINT/SIGTERM via sb-sys
-    (sb-sys:enable-interrupt sb-unix:sigint (lambda (sig) (declare (ignore sig)) (persist-session) (sb-ext:quit)))
-    (sb-sys:enable-interrupt sb-unix:sigterm (lambda (sig) (declare (ignore sig)) (persist-session) (sb-ext:quit)))
-    (loop (sleep 1))))
+    ;; SBCL invokes signal handlers with (signal code context) — 3 args.
+    ;; The v0.1.x 1-arg lambdas died on the FIRST detached-terminal SIGHUP.
+    (flet ((graceful (&rest args)
+             (declare (ignore args))
+             (ignore-errors (persist-session))
+             (sb-ext:quit)))
+      (sb-sys:enable-interrupt sb-unix:sigint #'graceful)
+      (sb-sys:enable-interrupt sb-unix:sigterm #'graceful))
+    ;; The daemon must SURVIVE a loop error: log it, keep serving. A daemon
+    ;; that takes its process down on one bad tick strands every frame.
+    (loop
+      (handler-case (sleep 1)
+        (error (e)
+          (format *error-output* "~&[ymacs] DAEMON LOOP ERROR: ~a~%" e)
+          (sb-debug:backtrace 12 *error-output*)
+          (sleep 1))))))
 
 ;;; ---- CLI ---------------------------------------------------------------
 

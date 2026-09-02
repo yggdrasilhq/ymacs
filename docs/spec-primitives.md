@@ -222,7 +222,16 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      clicks accepted, C-u prefix. Palette keys mutate palette state and
      are never recorded — the invocation through the choke point is,
      with its collected arguments, and replays headless.
-  5. Frame=row (make-frame → row) and focus-donates-sidebar.
+  5. ~~Frame=row (make-frame → row)~~ ✅ done (2026-09-02): make-frame
+     spawns a yggterm row (`terminal new --kind shell --title ...`) and
+     launches the ymacs client in it — the client attaches to the same
+     daemon (emacsclient semantics). Live-verified end to end: the eval
+     verb answers the row path; the row appears in yggterm; delete-frame
+     closes the surface and leaves the row. Latent defects fixed on the
+     way: the /action eval arm never existed (every --eval no-opped),
+     JSON string values were not unescaped, signal handlers died on the
+     first SIGHUP (1-arg lambda vs SBCL's 3-arg invocation), and
+     run-daemon exited on a single loop error.
   6. emd-renderer ownership: ASCII text surface moved into emd-renderer;
      org typed nodes; ymacs org components (TODO cycle, checkbox,
      headline sidebar nav).

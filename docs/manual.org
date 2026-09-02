@@ -83,12 +83,14 @@ search box + heading speed-nav to the sidebar; gdb-mode donates
 breakpoints/frames; the same buffer in two windows can show different
 component sets.
 
-** Frames are yggterm rows =[ymacs extension]=
+** Frames are yggterm rows =[ymacs extension]= [status: make-frame implemented, live-verified]
 
-=C-x 5 2= (=make-frame=) spawns a new yggterm row with its own surface,
-attached to the same daemon. Frame parameters map to row properties;
-=delete-frame= closes the row. Frames are cheap clients; the daemon owns
-state, exactly like emacsclient sessions.
+=C-x 5 2= (=make-frame=) spawns a new yggterm row titled for the frame
+and launches the ymacs client in it — the client attaches to the same
+daemon, exactly the emacsclient model. Frame parameters map to row
+properties; =delete-frame= (=C-x 5 0=) closes the surface and leaves
+the row; the daemon survives, like deleting the last emacsclient frame.
+The daemon holds the spawn registry; frames are cheap clients.
 
 * Chapter 4: Command layer, M-x, and Macros =[parity]= [status: implemented, key plane pending]
 

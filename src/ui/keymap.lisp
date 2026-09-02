@@ -54,6 +54,8 @@
   (global-set-key "C-a" 'move-beginning-of-line)
   (global-set-key "C-e" 'move-end-of-line)
   (global-set-key "C-u" 'universal-argument)
+  (global-set-key "C-x 5 2" 'make-frame)
+  (global-set-key "C-x 5 0" 'delete-frame)
   (which-key-register-prefix "C-x" '(("C-f" . "find file") ("C-s" . "save") ("C-b" . "switch buffer") ("C-k" . "kill buffer") ("b" . "consult buffer") ("k" . "kill buffer") ("u" . "undo")))
   (which-key-register-prefix "C-c" '(("s" . "toggle sidebar") ("p" . "project") ("o" . "outline") ("c" . "comment")))
   t)

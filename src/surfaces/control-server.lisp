@@ -110,9 +110,24 @@
               (let ((vstart (1+ colon)))
                 (loop while (and (< vstart len) (member (char str vstart) '(#\Space #\Tab #\Return #\Newline))) do (incf vstart))
                 (if (and (< vstart len) (char= (char str vstart) #\"))
-                    (let ((v1 vstart) (v2 (position #\" str :start (1+ vstart))))
+                    ;; String value: scan to the CLOSING quote, honouring
+                    ;; \" escapes, and UNESCAPE per JSON (\" → ", \\ → \,
+                    ;; \n \t \r) — the value the app receives must be the
+                    ;; value the client sent. Without unescaping, a form
+                    ;; like (string-upcase \"abc\") reached the reader with
+                    ;; literal backslash-quotes OUTSIDE string context and
+                    ;; could never be read.
+                    (let ((v1 vstart) (p (1+ vstart)) (v2 nil))
+                      (loop while (and (< p len) (null v2)) do
+                        (let ((ch (char str p)))
+                          (cond
+                            ((and (char= ch #\\) (< (1+ p) len)) (incf p 2))
+                            ((char= ch #\") (setf v2 p))
+                            (t (incf p)))))
                       (when v2
-                        (push (cons key (subseq str (1+ v1) v2)) result)
+                        (let ((raw (subseq str (1+ v1) v2)))
+                          (declare (dynamic-extent raw))
+                          (push (cons key (json-unescape raw)) result))
                         (setf i (1+ v2))))
                     (let ((vend vstart))
                       (loop while (and (< vend len) (not (member (char str vend) '(#\, #\} #\Space #\Tab #\Return #\Newline)))) do (incf vend))
@@ -120,6 +135,27 @@
                         (push (cons key val) result)
                         (setf i vend))))))))))
     (nreverse result)))
+
+(defun json-unescape (s)
+  "Decode the JSON string escapes a client may have sent (\\\" \\\\ \\n \\t
+\\r); unknown escapes keep the character after the backslash. Values
+arrive RAW in the alist — this is the JSON contract, not an option."
+  (let ((out (make-string-output-stream)))
+    (let ((i 0) (len (length s)))
+      (loop while (< i len) do
+        (let ((ch (char s i)))
+          (if (and (char= ch #\\) (< (1+ i) len))
+              (let ((next (char s (1+ i))))
+                (cond
+                  ((char= next #\") (write-char #\" out))
+                  ((char= next #\\) (write-char #\\ out))
+                  ((char= next #\n) (write-char #\Newline out))
+                  ((char= next #\t) (write-char #\Tab out))
+                  ((char= next #\r) (write-char #\Return out))
+                  (t (write-char next out)))
+                (incf i 2))
+              (progn (write-char ch out) (incf i 1))))))
+    (get-output-stream-string out)))
 
 (defun extract-json-field (json-str field)
   (cdr (assoc field (parse-flat-json json-str) :test #'string=)))
@@ -349,6 +385,28 @@
        (setf *minibuffer-input* (cdr (assoc "minibuffer" values-alist :test #'string=)))
        (minibuffer-refilter)
        (key-plane-reply))
+      ((and action (string= action "eval"))
+       ;; The headless verb: ymacs --eval posts here (main.lisp CLI).
+       ;; v0.1.x had ymacs-verb-eval but NO arm — every --eval silently
+       ;; no-opped. Agents drive ymacs through this door; it must answer
+       ;; with the result, not a generic ok.
+       (let* ((form-string (cdr (assoc "form" body-json :test #'string=)))
+              (form (and form-string
+                         ;; Read in the ymacs package: a headless form must
+                         ;; resolve ymacs symbols (v0.1.x read in whatever
+                         ;; *package* the image started in and every symbol
+                         ;; uninterned to CL-USER).
+                         (let ((*package* (find-package :ymacs)))
+                           (ignore-errors (read-from-string form-string))))))
+         (if form
+             (let ((result (ignore-errors (multiple-value-list (eval form)))))
+               (if result
+                   `(("ok" . t)
+                     ("result" . ,(json-string (format nil "~{~a~^ ; ~}" result)))
+                     ("document_version" . ,(document-version)))
+                   `(("ok" . t) ("result" . "nil")
+                     ("document_version" . ,(document-version)))))
+             `(("ok" . nil) ("error" . "unreadable form")))))
       ((and action (string= action "goto-line"))
        `(("ok" . t)))
       (t `(("ok" . t) ("document_version" . ,(document-version)))))))

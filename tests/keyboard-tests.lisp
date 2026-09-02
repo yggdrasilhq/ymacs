@@ -235,5 +235,14 @@ world")))
       (keyboard-quit)
       (assert-eq* "" (key-sequence-string))))
 
+
+  (test "flat json scan honours escaped quotes in values"
+    (let* ((bs (string (code-char 92)))
+           (q (string (code-char 34)))
+           (json (concatenate 'string "{" q "form" q ":" q "(+ 1 " bs q "x" bs q ")" q "}" ))
+           (parsed (parse-flat-json json)))
+      (assert-eq* t (not (null (assoc "form" parsed :test (function string=)))))
+      (assert-eq* t (not (null (search (string (code-char 34))
+                                (cdr (assoc "form" parsed :test (function string=)))))))))
   (format t "~a passed, ~a failed~%" *test-pass* *test-fail*)
   (zerop *test-fail*))

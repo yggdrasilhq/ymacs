@@ -12,6 +12,7 @@
                 :components ((:file "rope")
                              (:file "buffer")
                              (:file "command")
+                             (:file "frames")
                              (:file "session")
                              (:file "window")
                              (:file "sidebar")
