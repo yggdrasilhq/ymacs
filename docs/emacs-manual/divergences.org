@@ -20,7 +20,7 @@ cost.
   loudly at load (intended).
 
 * D2 — Configuration: init.org defaults + user.org overrides, theme
-  tokens instead of faces [adopted]
+  tokens instead of faces [adopted; settings system shipped 2026-09-03]
 
 - Emacs node: (emacs) Init File / Faces
 - What: defaults are the shipped literate ~init.org~; user edits go ONLY
@@ -30,6 +30,11 @@ cost.
 - Why: Emacs's unbounded face system is the largest source of visual and
   maintenance noise; a closed token set renders through yggterm themes.
 - Compat cost: packages setting faces get tokens, not exact faces.
+- ymacs extension: =M-x settings= renders the schema-declared settings
+  (=init.org= =* Settings= chapter, org properties) as a dual-window UI
+  (sections rail + settings document); changes write the =* Settings=
+  drawer of =user.org= byte-preservingly. Sections ship with behavior
+  (Editing first); empty sections are never rendered.
 
 * D3 — Frames are yggterm rows [planned → primitives law §1.3]
 

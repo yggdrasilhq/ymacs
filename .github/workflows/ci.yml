@@ -28,6 +28,8 @@ jobs:
           test -f src/core/command.lisp
           test -f tests/command-tests.lisp
           test -f tests/org-tests.lisp
+          test -f tests/settings-tests.lisp
+          test -f src/core/settings.lisp
           test -f src/surfaces/control-server.lisp
           test -f src/elpa/use-package.lisp
           test -f src/elpa/which-key.lisp

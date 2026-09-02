@@ -7,7 +7,7 @@
 
 (defvar *sidebar-visible* nil)
 (defvar *current-sidebar-pane* "buffers")
-(defvar *available-panes* '("buffers" "outline" "project" "which-key"))
+(defvar *available-panes* '("buffers" "outline" "project" "which-key" "settings"))
 (defvar *sidebar-epoch* 0)
 
 (defun sidebar-visible-p () *sidebar-visible*)

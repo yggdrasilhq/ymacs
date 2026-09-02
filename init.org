@@ -18,14 +18,10 @@ Unlike traditional monolithic or fragmented configuration files, ymacs is config
 ymacs discards archaic defaults from the 1980s in favor of instant ergonomics, clean visuals, and responsive performance.
 
 ** Sane Editor Behavior
-We enable UTF-8 everywhere, clean line wrapping, visual indentation, and smooth cursor movement.
-
-#+begin_src lisp
-(defparameter *editor-tab-width* 2)
-(defparameter *editor-line-numbers* :relative)
-(defparameter *editor-word-wrap* t)
-(defparameter *editor-auto-save-interval* 10) ; seconds
-#+end_src
+Editor behavior defaults are SETTINGS, declared in the [[*Settings][Settings]]
+chapter below as org properties and changed either by hand in
+=~/.yggterm/ymacs/user.org= or through =M-x settings=. There are no
+parallel defparameter defaults — the store is the one source.
 
 ** Fast Startup & Memory Discipline
 Garbage collection pauses are monitored by ytrace and scheduled during idle periods.
@@ -100,3 +96,29 @@ Autonomous agents can connect directly to the running ymacs REPL and query or ma
   "Start local loopback listener for yggterm agent buffer orchestration."
   (ymacs-rpc:start-server :host "127.0.0.1" :port port))
 #+end_src
+
+* Settings
+
+The machine-readable settings schema. One level-2 heading per SECTION;
+one level-3 heading per SETTING whose =:PROPERTIES:= drawer declares
+=:TYPE:= (boolean | string | number), =:DEFAULT:=, and =:DESC:=. The
+settings UI is generated from this chapter — never hand-mirrored — and
+overrides are written to =~/.yggterm/ymacs/user.org= under its own
+=* Settings= drawer (defaults ← overrides). A setting appears here only
+when something actually reads it.
+
+** Editing
+
+*** editor.word-wrap
+:PROPERTIES:
+:TYPE: boolean
+:DEFAULT: true
+:DESC: Soft-wrap long lines in the editor viewport.
+:END:
+
+*** editor.line-numbers
+:PROPERTIES:
+:TYPE: boolean
+:DEFAULT: true
+:DESC: Show line numbers in the editor viewport.
+:END:

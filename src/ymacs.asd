@@ -16,7 +16,8 @@
                              (:file "session")
                              (:file "window")
                              (:file "sidebar")
-                             (:file "window-manager")))
+                             (:file "window-manager")
+                             (:file "settings")))
                (:module "surfaces"
                 :components ((:file "osc7717")
                              (:file "control-server")))

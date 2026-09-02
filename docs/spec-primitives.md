@@ -262,7 +262,25 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      - Still v0 (honest): folding is point-motion only; agenda scans
        lines, not nodes; workflow keywords are the stock TODO/DONE
        pair until step 7's settings system carries user workflows.
-  7. Settings system (schema org store, dual-window UI, user.org writer).
+  7. Settings system ✅ done (2026-09-03):
+     - ONE store, two views: the schema lives in the shipped book's
+       `* Settings` chapter (sections = level-2, settings = level-3
+       with :TYPE:/:DEFAULT:/:DESC: properties); overrides live in
+       `~/.yggterm/ymacs/user.org`'s Settings drawer. Precedence is
+       defaults ← overrides. The UI is generated from the schema —
+       no hand-mirrored widget list.
+     - `M-x settings`: the sidebar becomes the sections column, the
+       viewport renders the selected section (boolean On/Off controls,
+       current values, primary-button marking); sections switch live;
+       the editor's word_wrap/line_numbers widgets now read the store.
+       The settings view drops key_capture; closing restores it.
+     - The writer is byte-preserving (foreign keys kept, trailing
+       newline kept, tmp+rename) and validated against the schema
+       (unknown ids and bad values rejected without touching the file);
+       user.org is a peer view (mtime+length reload on hand edits).
+     - Contract-tested: tests/settings-tests.lisp, 12 tests in CI.
+     - Still v0 (honest): sections ship with behavior (Editing first);
+       Appearance/Keybindings/Modes/Packages/About arrive with theirs.
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 

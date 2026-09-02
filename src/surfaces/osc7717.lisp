@@ -65,7 +65,7 @@
 
 (defun emit-declare (session control document-version)
   (let* ((title (if *current-buffer* (buffer-name *current-buffer*) "ymacs"))
-         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"buffers\",\"icon\":\"🗂\",\"title\":\"Buffers\",\"placement\":\"rail\"},{\"id\":\"which-key\",\"icon\":\"⌨\",\"title\":\"Which Key\",\"placement\":\"rail\"},{\"id\":\"outline\",\"icon\":\"≡\",\"title\":\"Outline\",\"placement\":\"rail\"}]}"
+         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"buffers\",\"icon\":\"🗂\",\"title\":\"Buffers\",\"placement\":\"rail\"},{\"id\":\"which-key\",\"icon\":\"⌨\",\"title\":\"Which Key\",\"placement\":\"rail\"},{\"id\":\"outline\",\"icon\":\"≡\",\"title\":\"Outline\",\"placement\":\"rail\"},{\"id\":\"settings\",\"icon\":\"⚙\",\"title\":\"Settings\",\"placement\":\"rail\"}]}"
                           (json-escape-string session)
                           (json-escape-string control)
                           (json-escape-string document-version)
