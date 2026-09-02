@@ -168,6 +168,9 @@ world")))
 
   (test "C-x C-f opens the palette for the file name (generic prompting)"
     (let* ((path #p"~/.yggterm/scratchpad/ymacs-palette-test.txt"))
+      ;; CI runners have no fleet scratch dir — create it (the scratch
+      ;; LOCATION is fleet law; EXISTENCE is this test's job).
+      (ensure-directories-exist path)
       (with-open-file (out path :direction :output :if-exists :supersede)
         (write-string "palette file body" out))
       (let* ((buf (make-new-buffer "*kt*" "")))
