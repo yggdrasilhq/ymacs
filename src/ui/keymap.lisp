@@ -53,6 +53,7 @@
   (global-set-key "C-b" 'backward-char)
   (global-set-key "C-a" 'move-beginning-of-line)
   (global-set-key "C-e" 'move-end-of-line)
+  (global-set-key "C-u" 'universal-argument)
   (which-key-register-prefix "C-x" '(("C-f" . "find file") ("C-s" . "save") ("C-b" . "switch buffer") ("C-k" . "kill buffer") ("b" . "consult buffer") ("k" . "kill buffer") ("u" . "undo")))
   (which-key-register-prefix "C-c" '(("s" . "toggle sidebar") ("p" . "project") ("o" . "outline") ("c" . "comment")))
   t)

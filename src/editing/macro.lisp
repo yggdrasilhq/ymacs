@@ -29,14 +29,15 @@ defined is allowed (it composes silently); to have a composition record
 as ONE step, name the macro (name-last-kbd-macro) and invoke the name —
 named invocations are commands and record as such."
   (let ((n (or count 1)))
-    (loop repeat (max 1 n) do
-      (dolist (entry macro)
-        (let ((cmd (getf entry :command))
-              (args (getf entry :args))
-              (prefix (getf entry :prefix)))
-          (when prefix (give-prefix-arg prefix))
-          (command-execute cmd :args args :record nil))))
-    t))
+    (let ((*kbd-replaying* t))
+      (loop repeat (max 1 n) do
+        (dolist (entry macro)
+          (let ((cmd (getf entry :command))
+                (args (getf entry :args))
+                (prefix (getf entry :prefix)))
+            (when prefix (give-prefix-arg prefix))
+            (command-execute cmd :args args :record nil))))
+      t)))
 
 (defun name-last-kbd-macro (symbol)
   "Bind SYMBOL to the last keyboard macro; calling SYMBOL runs it."

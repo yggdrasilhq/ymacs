@@ -106,8 +106,19 @@ Macros record *command invocations with arguments*, never UI gestures.
 Consequences: a macro recorded through M-x replays identically headless
 (=ymacs --eval=) with no surfaces at all, and palette UI changes can
 never break recorded macros. Replay never re-records; composition by
-=named= macro records one step. Implemented: recorder lives at the
-command-layer choke point; playback in =src/editing/macro.lisp=.
+=named= macro records one step; a replay never opens UI. Implemented at
+the command-layer choke point; contract-tested.
+
+** The palette = the minibuffer =[ymacs extension]= [status: implemented]
+
+The command palette IS the Emacs minibuffer, rendered as window chrome:
+a prompt section, the input field, and the candidate rows are ordinary
+document-surface widgets driven by the key plane. It is the GENERIC
+collector — M-x reads a command name; any command with unsupplied
+prompting parameters opens it (C-x C-f prompts "Find file: "); C-u
+gives a numeric prefix. Filtering is orderless-style (every
+space-separated part matches). During a read the palette owns the
+keyboard; its keys are never recorded.
 
 Bindings: =C-x (= start, =C-x )= end, =C-x e= execute last,
 =name-last-kbd-macro=, =insert-kbd-macro=.

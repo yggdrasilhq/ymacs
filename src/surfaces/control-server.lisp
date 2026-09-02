@@ -190,6 +190,13 @@
           status #\Return #\Newline #\Return #\Newline (length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)
   (force-output stream))
 
+(defun document-schema-widgets (base)
+  "BASE widgets plus the palette's widgets while a read is in flight."
+  (let ((mb (minibuffer-schema-widgets)))
+    (if mb
+        (coerce (append (coerce base 'list) mb) 'vector)
+        base)))
+
 (defun document-schema ()
   (let ((buf *current-buffer*))
     (if buf
@@ -200,22 +207,24 @@
               (pending (key-sequence-string)))
           `(("title" . ,(format nil "ymacs — ~a~a" name mod))
             ("key_capture" . t)
-            ("widgets" . ,(vector
-                           `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
-                           `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
-                             ("line_numbers" . t) ("word_wrap" . t)
-                             ("value" . ,content) ("value_key" . ,id)
-                             ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
-                           `(("kind" . "toolbar") ("id" . "doc-toolbar")
-                             ("buttons" . ,(vector
-                                            `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
-                                            `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
-                                            `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key")))))))))
+            ("widgets" . ,(document-schema-widgets
+                           (vector
+                            `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
+                            `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
+                              ("line_numbers" . t) ("word_wrap" . t)
+                              ("value" . ,content) ("value_key" . ,id)
+                              ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
+                            `(("kind" . "toolbar") ("id" . "doc-toolbar")
+                              ("buttons" . ,(vector
+                                             `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
+                                             `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
+                                             `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))))))))))
         `(("title" . "ymacs")
           ("key_capture" . t)
-          ("widgets" . ,(vector
-                         `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
-                         `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane."))))))))
+          ("widgets" . ,(document-schema-widgets
+                         (vector
+                          `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
+                          `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane.")))))))
 
 (defun buffers-schema ()
   (let ((widgets nil))
@@ -313,6 +322,33 @@
        ;; dispatched through the command layer, fresh schema in the reply.
        (let ((chord (cdr (assoc "key" values-alist :test #'string=))))
          (ymacs-handle-key (or chord ""))))
+      ((and action (string= action "minibuffer-accept"))
+       ;; RET in the palette's own field.
+       (when *minibuffer-active*
+         (let ((draft (cdr (assoc "minibuffer" values-alist :test #'string=))))
+           (when draft
+             (setf *minibuffer-input* draft)
+             (minibuffer-refilter))))
+       (minibuffer-accept)
+       (key-plane-reply))
+      ((and action (string= action "minibuffer-select"))
+       ;; A clicked candidate: select it by id, then accept. Mouse gestures
+       ;; are never recorded — the invocation carries the values.
+       (when *minibuffer-active*
+         (let ((cand (cdr (assoc "value" body-json :test #'string=))))
+           (let ((pos (position cand *minibuffer-candidates* :test #'string=)))
+             (when pos (setf *minibuffer-selected* pos)))
+           (when cand
+             (setf *minibuffer-input* cand)
+             (minibuffer-refilter))
+           (minibuffer-accept)))
+       (key-plane-reply))
+      ((and *minibuffer-active*
+            (assoc "minibuffer" values-alist :test #'string=))
+       ;; Draft sync from the palette field (native typing fallback).
+       (setf *minibuffer-input* (cdr (assoc "minibuffer" values-alist :test #'string=)))
+       (minibuffer-refilter)
+       (key-plane-reply))
       ((and action (string= action "goto-line"))
        `(("ok" . t)))
       (t `(("ok" . t) ("document_version" . ,(document-version)))))))

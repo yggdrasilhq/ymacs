@@ -46,10 +46,11 @@ A binding \"C-x C-f\" makes \"C-x\" a prefix; the separator is one space."
 ;;; --- Execution --------------------------------------------------------------
 
 (defun keyboard-execute-binding (cmd)
-  "Execute a keymap binding through the command layer. A binding to an
-unbound symbol, or one whose parameters need a prompt the key plane
-cannot ask (M-x without the palette — the palette component is its
-collector), refuses quietly: a dead key must never kill the reply."
+  "Execute a keymap binding through the command layer. A binding whose
+parameters need a value the caller did not supply opens the palette
+(the minibuffer) to collect them — C-x C-f prompts \"Find file: \"
+exactly as Emacs does; M-x lands on the command-name read. A binding to
+an unbound symbol refuses quietly: a dead key must never kill the reply."
   (handler-case
       (typecase cmd
         (symbol (if (fboundp cmd)
@@ -57,7 +58,23 @@ collector), refuses quietly: a dead key must never kill the reply."
                     nil))
         (function (funcall cmd) t)
         (otherwise nil))
-    (missing-interactive-args () nil)
+    (missing-interactive-args (c)
+      (let ((failed (missing-interactive-args-command c)))
+        (cond
+          ;; Replay never opens UI: a stored macro carries its values, so
+          ;; this cannot happen for a well-formed record — skip, don't ask.
+          (*kbd-replaying* nil)
+          ;; Phase 1: choose a command name; the palette resolves it and
+          ;; then collects that command's own prompting parameters.
+          ((eq failed 'execute-extended-command)
+           (setf *minibuffer-command* nil
+                 *minibuffer-remaining-prompts* nil
+                 *minibuffer-acc* nil)
+           (minibuffer-start "M-x " (minibuffer-command-names)))
+          ;; Any other prompting command collects its own parameters —
+          ;; C-x C-f prompts "Find file: " exactly as Emacs does.
+          (t (minibuffer-start-for-command failed)))
+        nil))
     (error () nil)))
 
 ;;; --- Point helpers ------------------------------------------------------------
@@ -179,11 +196,26 @@ c")
           (keyboard-clamp-point (+ (buffer-point *current-buffer*) count)))
     t))
 
+(defcommand universal-argument (&optional (count 4))
+  "C-u: begin a numeric prefix argument; consecutive C-u's multiply.
+The prefix the key plane computes (\"p\" yields 1) is not the point —
+C-u always STARTS at 4 and multiplies on repeats."
+  (interactive "p")
+  (declare (ignore count))
+  (give-prefix-arg (* 4 (if *prefix-arg-given* (max 1 *prefix-arg*) 1)))
+  *prefix-arg*)
+
 ;;; --- The dispatcher -------------------------------------------------------------
 
 (defun ymacs-handle-key (chord)
   "Handle one key event. Returns the action-reply alist: ok + the fresh
 document schema, so one loopback round trip renders the keystroke."
+  (when *minibuffer-active*
+    ;; The palette owns the keyboard while a read is in flight: its keys
+    ;; mutate palette state and are NEVER recorded (the macro law) — only
+    ;; the accepted invocation, through the choke point, is.
+    (minibuffer-handle-key chord)
+    (return-from ymacs-handle-key (key-plane-reply)))
   (if (or (null chord) (string= chord ""))
       (key-plane-reply)
       (let ((seq (if *key-sequence*

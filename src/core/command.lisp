@@ -82,6 +82,7 @@ form at the head of BODY — both stripped from the function body."
 (defvar *last-kbd-macro* nil "Last completed macro: list of entries.")
 (defvar *kbd-macro-ring* nil)
 (defvar *kbd-macro-ring-max* 10)
+(defvar *kbd-replaying* nil "T inside execute-kbd-macro: failures skip, never open UI.")
 
 ;; Entry shape: (:command SYMBOL :args LIST :prefix VALUE)
 
@@ -202,7 +203,10 @@ by replay. Every other call site in ymacs must go through here."
                (not (member sym '(start-kbd-macro end-kbd-macro cancel-kbd-macro))))
       (macro-record-entry (list :command (or sym fn) :args (copy-list values) :prefix *prefix-arg*)))
     (let ((result (apply fn values)))
-      (reset-prefix-arg)
+      ;; The prefix is consumed by the command that read it; the one
+      ;; command that CREATES a prefix must keep it.
+      (unless (eq sym 'universal-argument)
+        (reset-prefix-arg))
       result)))
 
 (defun execute-extended-command (&optional prefix-arg command-name &rest supplied-args)
@@ -228,4 +232,5 @@ the command through the choke point."
 (declare-interactive 'undo "")
 (declare-interactive 'yank "P")
 (declare-interactive 'keyboard-quit "")
-(declare-interactive 'execute-extended-command "P\nMCommand name: ")
+(declare-interactive 'execute-extended-command "P
+MCommand name: ")

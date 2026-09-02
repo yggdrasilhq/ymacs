@@ -209,11 +209,19 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
   "Deep Dive N" appendix was template padding (removed with the
   2026-09-02 manual rewrite).
 - **The rebuild order that satisfies this law** (next sessions):
-  1. ~~Command layer~~ ✅ done (this unit, minus the key plane itself).
+  1. ~~Command layer~~ ✅ done.
   2. ~~Macro recorder at the command layer + headless replay test~~ ✅ done.
-  3. Key input plane: PTY/widget key events → prefix accumulation →
-     `command-execute` (the layer is ready to receive them).
-  4. Palette component view over M-x/completing-read (feeds the layer).
+  3. ~~Key input plane~~ ✅ done (ymacs f9781d3 + yggterm 66eb48810).
+  4. ~~Command palette view~~ ✅ done (2026-09-02): the MINIBUFFER is the
+     palette — a Lisp state machine rendered as document-surface widgets
+     (prompt section + search field + selected candidate rows), fed by the
+     key plane. It is the GENERIC interactive-argument collector: any
+     command whose spec needs an unsupplied value opens it (C-x C-f
+     prompts "Find file: " exactly as Emacs); M-x is the command-name
+     read. Orderless-style filtering, C-n/C-p/arrows/RET/TAB/C-g, mouse
+     clicks accepted, C-u prefix. Palette keys mutate palette state and
+     are never recorded — the invocation through the choke point is,
+     with its collected arguments, and replays headless.
   5. Frame=row (make-frame → row) and focus-donates-sidebar.
   6. emd-renderer ownership: ASCII text surface moved into emd-renderer;
      org typed nodes; ymacs org components (TODO cycle, checkbox,
