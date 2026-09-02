@@ -80,6 +80,8 @@
                            (json-encode-response (which-key-schema query)))
                           ((and (string= method "GET") (string= path "/pane/outline"))
                            (json-encode-response (outline-schema)))
+                          ((and (string= method "GET") (string= path "/pane/settings"))
+                           (json-encode-response (settings-pane-schema)))
                           ((and (string= method "POST") (string= path "/open"))
                            (let* ((raw (or (cdr (assoc "path" body-json :test #'string=))
                                            (extract-json-field body "path")))
@@ -234,33 +236,40 @@ arrive RAW in the alist — this is the JSON contract, not an option."
         base)))
 
 (defun document-schema ()
-  (let ((buf *current-buffer*))
-    (if buf
-        (let ((content (buffer-content buf))
-              (id (buffer-id buf))
-              (name (buffer-name buf))
-              (mod (if (buffer-modified-p buf) " — modified" ""))
-              (pending (key-sequence-string)))
-          `(("title" . ,(format nil "ymacs — ~a~a" name mod))
-            ("key_capture" . t)
-            ("widgets" . ,(document-schema-widgets
-                           (vector
-                            `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
-                            `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
-                              ("line_numbers" . t) ("word_wrap" . t)
-                              ("value" . ,content) ("value_key" . ,id)
-                              ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
-                            `(("kind" . "toolbar") ("id" . "doc-toolbar")
-                              ("buttons" . ,(vector
-                                             `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
-                                             `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
-                                             `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))))))))))
-        `(("title" . "ymacs")
-          ("key_capture" . t)
-          ("widgets" . ,(document-schema-widgets
-                         (vector
-                          `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
-                          `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane.")))))))
+  ;; While settings are open the settings document OWNS the viewport
+  ;; (M-x settings); the shell keeps native key handling there — the
+  ;; widgets are the interaction, the rail is the section column.
+  (if *settings-open*
+      (settings-document-schema)
+      (let ((buf *current-buffer*))
+        (if buf
+            (let ((content (buffer-content buf))
+                  (id (buffer-id buf))
+                  (name (buffer-name buf))
+                  (mod (if (buffer-modified-p buf) " — modified" ""))
+                  (pending (key-sequence-string)))
+              `(("title" . ,(format nil "ymacs — ~a~a" name mod))
+                ("key_capture" . t)
+                ("widgets" . ,(document-schema-widgets
+                               (vector
+                                `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
+                                `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
+                                  ("line_numbers" . ,(settings-get "editor.line-numbers"))
+                                  ("word_wrap" . ,(settings-get "editor.word-wrap"))
+                                  ("value" . ,content) ("value_key" . ,id)
+                                  ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
+                                `(("kind" . "toolbar") ("id" . "doc-toolbar")
+                                  ("buttons" . ,(vector
+                                                 `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
+                                                 `(("action" . "settings") ("label" . "⚙ Settings") ("title" . "Settings (M-x settings)"))
+                                                 `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
+                                                 `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))))))))
+            `(("title" . "ymacs")
+              ("key_capture" . t)
+              ("widgets" . ,(document-schema-widgets
+                             (vector
+                              `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
+                              `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane."))))))))))
 
 (defun buffers-schema ()
   (let ((widgets nil))
@@ -317,6 +326,14 @@ arrive RAW in the alist — this is the JSON contract, not an option."
         while pos))
 
 (defun handle-action (body-json)
+  ;; Settings actions (settings, settings-section, settings-close,
+  ;; settings-set:<id>:<value>) are the settings module's namespace.
+  (let ((settings (settings-handle-action
+                   (cdr (assoc "action" body-json :test #'string=))
+                   body-json
+                   (cdr (assoc "values" body-json :test #'string=)))))
+    (when settings
+      (return-from handle-action (second settings))))
   (let* ((action (cdr (assoc "action" body-json :test #'string=)))
          (values-alist (cdr (assoc "values" body-json :test #'string=)))
          (value-keys (cdr (assoc "value_keys" body-json :test #'string=)))
