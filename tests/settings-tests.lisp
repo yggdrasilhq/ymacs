@@ -233,27 +233,22 @@ no trailing newline"))
     (settings-close))
 
   (st-test "an unreachable schema is honest, not invented"
-    ;; A book with no Settings chapter: the schema is empty and the UI
-    ;; says so instead of inventing settings.
     (let ((empty-book (merge-pathnames "empty.org" (st-sandbox-home))))
-      (st-write empty-book "* Chapter I
-
-Just prose, no Settings chapter.
-")
-      (let ((*settings-schema-path-override* (namestring empty-book))
-            (*settings-user-org-path-override* "/nonexistent/user.org")
-            (*settings-overrides* nil)
-            (*settings-user-org-stat* nil)
-            (*current-buffer* nil))
-        (let ((schema (settings-schema)))
-          (st-assert nil schema))
-        (settings-open)
-        (let ((flat (format nil "~a" (cdr (assoc "widgets" (document-schema)
-                                                 :test #'string=)))))
-          (st-assert t (st-substr "schema not found" flat)))
-        (settings-close)))
+      (st-write empty-book "* Chapter I just prose, no Settings chapter.")
+      (setf *settings-schema-path-override* (namestring empty-book))
+      (setf *settings-user-org-path-override* "/nonexistent/user.org")
+      (setf *settings-overrides* nil)
+      (setf *settings-user-org-stat* nil)
+      (setf *current-buffer* nil)
+      (st-assert nil (settings-schema))
+      (settings-open)
+      (let ((widgets (cdr (assoc "widgets" (document-schema)
+                                 :test #'string=))))
+        (let ((flat (format nil "~a" widgets)))
+          (st-assert t (st-substr "schema not found" flat))))
+      (settings-close)))
 
   (st-teardown)
   (format t "ymacs settings store tests: ~a passed, ~a failed~%"
           *st-pass* *st-fail*)
-  (zerop *st-fail*)))
+  (zerop *st-fail*))
