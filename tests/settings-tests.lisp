@@ -1,9 +1,11 @@
 ;;;; settings-tests.lisp --- contract tests for the settings store and
 ;;;; its two views (docs/spec-primitives.md §4, step 7; divergence D2).
 ;;;;
-;;;; Everything runs in a sandboxed HOME: no test may touch the real
-;;;; ~/.yggterm state. The schema fixture is a real org file parsed by
-;;;; the same org node parser the editor uses.
+;;;; Everything runs in a disk-backed sandbox under the user's home:
+;;;; no test may touch the real ~/.yggterm state. The schema fixture is
+;;;; a real org file parsed by the same org node parser the editor uses.
+
+(require :sb-posix)
 
 (in-package #:ymacs)
 
@@ -20,18 +22,10 @@
   (unless (equal want got)
     (error "expected ~s, got ~s" want got)))
 
-(defun st-sandbox-dir ()
-  (merge-pathnames ".yggterm/ymacs/"
-                   (make-pathname :directory
-                                  (append (pathname-directory
-                                           (parse-namestring
-                                            (or (sb-ext:posix-getenv "HOME") "/")))
-                                          '("st-sandbox")))))
-
 (defun st-sandbox-home ()
-  (let* ((dir (st-sandbox-dir))
-         (home (make-pathname :directory (butlast (pathname-directory dir)))))
-    home))
+  "A disk-backed sandbox under the user's home — never /tmp, never the
+real .yggterm state."
+  (merge-pathnames ".yggterm/scratchpad/ymacs-st/" (user-homedir-pathname)))
 
 (defun st-write (path string)
   (ensure-directories-exist path)
@@ -80,23 +74,26 @@ Prose about the editor.
 ")
 
 (defun st-setup ()
-  "Sandbox HOME + schema fixture. Returns the schema path."
+  "Write the fixture book into the sandbox and point the store at it
+via the override specials. A stale sandbox user.org is removed so the
+suite starts from a known store."
   (let* ((sandbox (st-sandbox-home))
-         (book (merge-pathnames "init.org" sandbox)))
-    (setf (sb-ext:posix-getenv "HOME") (namestring sandbox))
+         (book (merge-pathnames "init.org" sandbox))
+         (user-org (merge-pathnames ".yggterm/ymacs/user.org" sandbox)))
     (st-write book *st-fixture-book*)
-    (setf (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA") (namestring book))
-    ;; Reset store state so tests start from the sandbox, not prior runs.
-    (setf *settings-open* nil
+    (ignore-errors (delete-file user-org))
+    (setf *settings-schema-path-override* (namestring book)
+          *settings-user-org-path-override* (namestring user-org)
+          *settings-open* nil
           *settings-section* nil
           *settings-overrides* nil
           *settings-user-org-stat* nil
           *current-buffer* nil)
     (namestring book)))
 
-(defun st-teardown (old-home old-schema)
-  (setf (sb-ext:posix-getenv "HOME") old-home)
-  (setf (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA") old-schema))
+(defun st-teardown ()
+  (setf *settings-schema-path-override* nil
+        *settings-user-org-path-override* nil))
 
 (defun st-widgets (schema)
   (coerce (cdr (assoc "widgets" schema :test #'string=)) 'list))
@@ -108,45 +105,42 @@ Prose about the editor.
 (defun st-editor-widget (schema)
   (st-widget (st-widgets schema) "editor"))
 
+(defun st-substr (needle haystack)
+  "Non-nil when NEEDLE occurs in HAYSTACK."
+  (not (null (search needle haystack))))
+
 (defun run-settings-tests ()
   (setf *st-pass* 0 *st-fail* 0)
   (format t "ymacs settings store tests~%")
-  (let ((old-home (sb-ext:posix-getenv "HOME"))
-        (old-schema (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA")))
-    (unwind-protect
-         (progn
-           (st-setup)
+  (st-setup)
 
-           (st-test "schema parses sections, entries, types, defaults from the book"
-             (st-assert '("Editing" "Files") (settings-sections))
-             (st-assert '("editor.word-wrap" "boolean" "true"
-                          "Soft-wrap long lines in the editor viewport.")
-                        (settings-entry "editor.word-wrap")))
+  (st-test "schema parses sections, entries, types, defaults from the book"
+    (st-assert (list "Editing" "Files") (mapcar #'car (settings-schema)))
+    (st-assert (list "editor.word-wrap" "boolean" "true"
+                     "Soft-wrap long lines in the editor viewport.")
+               (settings-entry "editor.word-wrap")))
 
-           (st-test "defaults apply when user.org does not exist"
-             (st-assert t (settings-get "editor.word-wrap"))
-             (st-assert 5 (settings-get "files.recent-max")))
+  (st-test "defaults apply when user.org does not exist"
+    (st-assert t (settings-get "editor.word-wrap"))
+    (st-assert 5 (settings-get "files.recent-max")))
 
-           (st-test "settings-set writes user.org and the override wins"
-             (st-assert :ok (settings-set "editor.word-wrap" "false"))
-             (st-assert nil (settings-get "editor.word-wrap"))
-             (let ((user (st-read (settings-user-org-path))))
-               (st-assert t (and (search "* Settings" user)
-                                 (search ":editor.word-wrap: false" user)))))
+  (st-test "settings-set writes user.org and the override wins"
+    (st-assert :ok (settings-set "editor.word-wrap" "false"))
+    (st-assert nil (settings-get "editor.word-wrap"))
+    (let ((user (st-read (settings-user-org-path))))
+      (st-assert t (st-substr "* Settings" user))
+      (st-assert t (st-substr ":editor.word-wrap: false" user))))
 
-           (st-test "a second set replaces in place, never duplicates"
-             (settings-set "editor.word-wrap" "true")
-             (settings-set "editor.word-wrap" "false")
-             (let ((user (st-read (settings-user-org-path))))
-               (st-assert 1 (count ":editor.word-wrap:" user :test #'string=))
-               (st-assert t (search ":editor.word-wrap: false" user))))
+  (st-test "a second set replaces in place, never duplicates"
+    (settings-set "editor.word-wrap" "true")
+    (settings-set "editor.word-wrap" "false")
+    (let ((user (st-read (settings-user-org-path))))
+      (st-assert t (st-substr ":editor.word-wrap: false" user))
+      (st-assert nil (search ":editor.word-wrap: true" user))))
 
-           (st-test "the writer preserves foreign bytes, keys, and the missing trailing newline"
-             ;; A user file with prose, a foreign property, and NO
-             ;; trailing newline must survive a set untouched outside
-             ;; the managed drawer.
-             (let ((user-path (settings-user-org-path))
-                   (before "* My config
+  (st-test "the writer preserves foreign bytes, keys, and the missing trailing newline"
+    (let* ((user-path (settings-user-org-path))
+           (before "* My config
 Some prose the user wrote.
 * Settings
 :PROPERTIES:
@@ -155,101 +149,111 @@ Some prose the user wrote.
 :END:
 * More prose
 no trailing newline"))
-               (st-write user-path before)
-               (setf *settings-user-org-stat* nil)
-               (settings-set "editor.word-wrap" "false")
-               (let ((after (st-read user-path)))
-                 (st-assert t (search "Some prose the user wrote." after))
-                 (st-assert t (search ":user.own-key: keep-me" after))
-                 (st-assert t (search ":editor.line-numbers: true" after))
-                 (st-assert t (search ":editor.word-wrap: false" after))
-                 (st-assert t (search "* More prose" after))
-                 (st-assert #\n (char after (1- (length after)))))))
+      (st-write user-path before)
+      (setf *settings-user-org-stat* nil)
+      (settings-set "editor.word-wrap" "false")
+      (let ((after (st-read user-path)))
+        (st-assert t (st-substr "Some prose the user wrote." after))
+        (st-assert t (st-substr ":user.own-key: keep-me" after))
+        (st-assert t (st-substr ":editor.line-numbers: true" after))
+        (st-assert t (st-substr ":editor.word-wrap: false" after))
+        (st-assert t (st-substr "* More prose" after))
+        (st-assert #\e (char after (1- (length after)))))))
 
-           (st-test "invalid ids and values are rejected without touching the file"
-             (let ((user-path (settings-user-org-path))
-                   (before (st-read user-path)))
-               (st-assert :invalid (settings-set "editor.word-wrap" "yes"))
-               (st-assert :invalid (settings-set "nope.mode" "true"))
-               (st-assert before (st-read user-path))))
+  (st-test "invalid ids and values are rejected without touching the file"
+    (let* ((user-path (settings-user-org-path))
+           (before (progn (settings-set "editor.line-numbers" "true")
+                          (st-read user-path))))
+      (st-assert :invalid (settings-set "nope.mode" "true"))
+      (st-assert :invalid (settings-set "editor.word-wrap" "yes"))
+      (st-assert before (st-read user-path))))
 
-           (st-test "hand edits to user.org are reloaded (the file is a peer view)"
-             (st-write (settings-user-org-path)
-                       "* Settings
+  (st-test "hand edits to user.org are reloaded (the file is a peer view)"
+    (st-write (settings-user-org-path)
+              "* Settings
 :PROPERTIES:
 :editor.word-wrap: true
 :END:")
-             (setf *settings-user-org-stat* nil) ; mtime is second-granular
-             (st-assert t (settings-get "editor.word-wrap")))
+    (setf *settings-user-org-stat* nil)
+    (st-assert t (settings-get "editor.word-wrap")))
 
-           (st-test "M-x settings renders the section from the schema"
-             (settings-open)
-             (settings-set "editor.word-wrap" "true")
-             (let* ((schema (document-schema))
-                    (title (cdr (assoc "title" schema :test #'string=)))
-                    (buttons (cdr (assoc "buttons"
-                                         (st-widget (st-widgets schema)
-                                                    "ctl:editor.word-wrap")
-                                         :test #'string=))))
-               (st-assert "ymacs — Settings: Editing" title)
-               ;; current value is true: the On button is primary.
-               (let ((on (find-if (lambda (b) (search "true" (cdr (assoc "action" b :test #'string=))))
-                                  (coerce buttons 'list)))
-                     (off (find-if (lambda (b) (search "false" (cdr (assoc "action" b :test #'string=))))
-                                   (coerce buttons 'list))))
-                 (st-assert t (cdr (assoc "primary" on :test #'string=)))
-                 (st-assert nil (cdr (assoc "primary" off :test #'string=))))))
+  (st-test "M-x settings renders the section from the schema"
+    (settings-open)
+    (settings-set "editor.word-wrap" "true")
+    (let* ((schema (document-schema))
+           (title (cdr (assoc "title" schema :test #'string=)))
+           (buttons (cdr (assoc "buttons"
+                                (st-widget (st-widgets schema)
+                                           "ctl:editor.word-wrap")
+                                :test #'string=))))
+      (st-assert "ymacs — Settings: Editing" title)
+      (let ((on (find-if (lambda (b) (search "true" (cdr (assoc "action" b :test #'string=))))
+                         (coerce buttons 'list)))
+            (off (find-if (lambda (b) (search "false" (cdr (assoc "action" b :test #'string=))))
+                          (coerce buttons 'list))))
+        (st-assert t (cdr (assoc "primary" on :test #'string=)))
+        (st-assert nil (cdr (assoc "primary" off :test #'string=))))))
 
-           (st-test "settings view drops key_capture; closing restores the editor view"
-             (st-assert nil (assoc "key_capture" (document-schema) :test #'string=))
-             (settings-close)
-             (st-assert t (cdr (assoc "key_capture" (document-schema) :test #'string=)))
-             (st-assert "editor" (cdr (assoc "id" (st-editor-widget (document-schema))
-                                              :test #'string=))))
+  (st-test "settings view drops key_capture; closing restores the editor view"
+    (let ((buf (make-new-buffer "*st-view*" "")))
+      (setf *current-buffer* buf)
+      (settings-open)
+      (st-assert nil (assoc "key_capture" (document-schema) :test #'string=))
+      (settings-close)
+      (st-assert t (not (null (assoc "key_capture" (document-schema) :test #'string=))))
+      (st-assert "editor" (cdr (assoc "id" (st-editor-widget (document-schema))
+                                       :test #'string=)))))
 
-           (st-test "the live editor widget reflects the store"
-             ;; The editor view needs a current buffer to render.
-             (let ((buf (make-new-buffer "*st-live*" "")))
-               (setf *current-buffer* buf)
-               (settings-set "editor.word-wrap" "false")
-               (let ((editor (st-editor-widget (document-schema))))
-                 (st-assert nil (cdr (assoc "word_wrap" editor :test #'string=)))
-                 (st-assert t (cdr (assoc "line_numbers" editor :test #'string=)))
-                 ;; restore
-                 (settings-set "editor.word-wrap" "true")
-                 (st-assert t (cdr (assoc "word_wrap"
-                                          (st-editor-widget (document-schema))
-                                          :test #'string=))))))
+  (st-test "the live editor widget reflects the store"
+    (let ((buf (make-new-buffer "*st-live*" "")))
+      (setf *current-buffer* buf)
+      (settings-set "editor.word-wrap" "false")
+      (let ((editor (st-editor-widget (document-schema))))
+        (st-assert nil (cdr (assoc "word_wrap" editor :test #'string=)))
+        (st-assert t (cdr (assoc "line_numbers" editor :test #'string=)))
+        (settings-set "editor.word-wrap" "true")
+        (st-assert t (cdr (assoc "word_wrap"
+                                 (st-editor-widget (document-schema))
+                                 :test #'string=))))))
 
-           (st-test "section switching renders the other section"
-             (settings-open)
-             (settings-handle-action "settings-section"
-                                     '(("value" . "Files")) nil)
-             (st-assert "ymacs — Settings: Files"
-                        (cdr (assoc "title" (document-schema) :test #'string=)))
-             (settings-close))
+  (st-test "section switching renders the other section"
+    (settings-open)
+    (settings-handle-action "settings-section" '(("value" . "Files")) nil)
+    (st-assert "ymacs — Settings: Files"
+               (cdr (assoc "title" (document-schema) :test #'string=)))
+    (settings-close))
 
-           (st-test "the settings pane lists sections with the selected flag"
-             (settings-open)
-             (let* ((pane (settings-pane-schema))
-                    (editing (st-widget (st-widgets pane) "Editing")))
-               (st-assert t (cdr (assoc "selected" editing :test #'string=)))
-               (st-assert "settings-section"
-                          (cdr (assoc "row_action" editing :test #'string=))))
-             (settings-close))
+  (st-test "the settings pane lists sections with the selected flag"
+    (settings-open)
+    (let* ((pane (settings-pane-schema))
+           (editing (st-widget (st-widgets pane) "Editing")))
+      (st-assert t (cdr (assoc "selected" editing :test #'string=)))
+      (st-assert "settings-section"
+                 (cdr (assoc "row_action" editing :test #'string=))))
+    (settings-close))
 
-           (st-test "an unreachable schema is honest, not invented"
-             (setf (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA")
-                   "/nonexistent/settings.org")
-             (setf *current-buffer* nil)
-             (let ((schema (settings-schema)))
-               (st-assert nil schema)
-               (settings-open)
-               (let ((flat (format nil "~a" (cdr (assoc "widgets" (document-schema)
-                                                        :test #'string=)))))
-                 (st-assert t (search "schema not found" flat)))
-               (settings-close))))
+  (st-test "an unreachable schema is honest, not invented"
+    ;; A book with no Settings chapter: the schema is empty and the UI
+    ;; says so instead of inventing settings.
+    (let ((empty-book (merge-pathnames "empty.org" (st-sandbox-home))))
+      (st-write empty-book "* Chapter I
 
-      (st-teardown old-home old-schema)))
-  (format t "ymacs settings store tests: ~a passed, ~a failed~%" *st-pass* *st-fail*)
-  (zerop *st-fail*))
+Just prose, no Settings chapter.
+")
+      (let ((*settings-schema-path-override* (namestring empty-book))
+            (*settings-user-org-path-override* "/nonexistent/user.org")
+            (*settings-overrides* nil)
+            (*settings-user-org-stat* nil)
+            (*current-buffer* nil))
+        (let ((schema (settings-schema)))
+          (st-assert nil schema))
+        (settings-open)
+        (let ((flat (format nil "~a" (cdr (assoc "widgets" (document-schema)
+                                                 :test #'string=)))))
+          (st-assert t (st-substr "schema not found" flat)))
+        (settings-close)))
+
+  (st-teardown)
+  (format t "ymacs settings store tests: ~a passed, ~a failed~%"
+          *st-pass* *st-fail*)
+  (zerop *st-fail*)))

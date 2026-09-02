@@ -166,7 +166,7 @@ headline motion, =org-babel-tangle=. The Outline sidebar is node-driven:
 level indent, workflow keyword, tag cookie, row =goto-line= moves buffer
 point (component law, Chapter 3).
 
-* Chapter 7: Configuration =[divergence #2]= [status: init.org tangle implemented, user.org planned]
+* Chapter 7: Configuration =[divergence #2]= [status: shipped 2026-09-03 — schema chapter in init.org, user.org writer, M-x settings dual-window UI]
 
 ymacs does not ship Emacs's faces. Defaults live in the shipped
 ~init.org~ literate book; user edits go to =~/.yggterm/ymacs/user.org~
@@ -175,9 +175,12 @@ are a small closed token set with a bounded =face→token= shim — face
 explosion is impossible by construction.
 
 =M-x settings= opens the dual-window settings system: sidebar = fast
-section navigation (Appearance, Editing, Keybindings, Modes, Packages,
-About), window = the selected settings document. Changing a setting
-writes the override to =user.org=, which stays hand-editable.
+section navigation, window = the selected settings document. Changing a
+setting writes the override into the =* Settings= drawer of =user.org=,
+which stays hand-editable (the file is a peer view — hand edits reload).
+Sections arrive with behavior: Editing ships first (editor.word-wrap,
+editor.line-numbers); Appearance, Keybindings, Modes, Packages, About
+follow as their behaviors land. Empty sections are never rendered.
 
 * Chapter 8: Surfaces and Transport [status: implemented]
 

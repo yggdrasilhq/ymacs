@@ -29,28 +29,39 @@
 file is a peer view, so hand edits are reloaded when either moves.
 mtime alone is second-granular; two edits inside one second must not
 serve a stale store.")
+(defvar *settings-schema-path-override* nil
+  "Test/diagnostic hook: when bound, THE schema file (beats the env
+and cwd search).")
+(defvar *settings-user-org-path-override* nil
+  "Test/diagnostic hook: when bound, THE user.org file (beats the
+state-dir default).")
 
 ;;; --- Schema resolution ---------------------------------------------------------
 
+(in-package #:ymacs)
+
 (defun settings-schema-path ()
-  "First existing candidate for the shipped book: explicit env override,
-an open buffer visiting init.org, the daemon's cwd. NIL when the book
-is unreachable — the UI then renders an honest empty schema (never a
-hand-mirrored fallback)."
-  (let ((env (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA")))
-    (or (and env (plusp (length env)) (probe-file env) env)
-        (let ((from-buffer (find-if
-                            (lambda (b)
-                              (and (buffer-file-path b)
-                                   (string-equal (file-namestring (buffer-file-path b))
-                                                 "init.org")))
-                            (list-all-buffers))))
-          (or (and from-buffer
-                   (buffer-file-path from-buffer)
-                   (probe-file (buffer-file-path from-buffer))
-                   (buffer-file-path from-buffer))
-              (let ((cwd (merge-pathnames "init.org" (sb-unix:posix-getcwd))))
-                (and (probe-file cwd) cwd)))))))
+  "First existing candidate for the shipped book: the test/diagnostic
+override, explicit env override, an open buffer visiting init.org, the
+daemon's cwd. NIL when the book is unreachable — the UI then renders an
+honest empty schema (never a hand-mirrored fallback)."
+  (or (and *settings-schema-path-override*
+           (probe-file *settings-schema-path-override*)
+           *settings-schema-path-override*)
+      (let ((env (sb-ext:posix-getenv "YMACS_SETTINGS_SCHEMA")))
+        (or (and env (plusp (length env)) (probe-file env) env)
+            (let ((from-buffer (find-if
+                                (lambda (b)
+                                  (and (buffer-file-path b)
+                                       (string-equal (file-namestring (buffer-file-path b))
+                                                     "init.org")))
+                                (list-all-buffers))))
+              (or (and from-buffer
+                       (buffer-file-path from-buffer)
+                       (probe-file (buffer-file-path from-buffer))
+                       (buffer-file-path from-buffer))
+                  (let ((cwd (merge-pathnames "init.org" (truename "."))))
+                    (and (probe-file cwd) cwd))))))))
 
 (defun settings--parse-properties (content lines prop-start prop-end)
   "Parse `:KEY: value` lines from LINES[PROP-START..PROP-END] (1-based,
@@ -122,10 +133,9 @@ is the authority on what settings exist."
     (let ((hit (find id (cdr section) :test #'string= :key #'first)))
       (when hit (return hit)))))
 
-;;; --- Overrides (user.org) -------------------------------------------------------
-
 (defun settings-user-org-path ()
-  (merge-pathnames "user.org" (state-dir)))
+  (or *settings-user-org-path-override*
+      (merge-pathnames "user.org" (state-dir))))
 
 (defun settings--settings-heading-p (line)
   "Exactly the level-1 `* Settings` heading (a `** Settings` subheading
@@ -154,28 +164,27 @@ numbers of the :PROPERTIES: and :END: lines — or NIL."
                   (return-from settings--drawer-span
                     (list props (1+ i))))))
       (when (and heading props)
-        ;; Drawer left unterminated: treat as ending at EOF rather than
-        ;; silently reading the user's other chapters as properties.
         (list props n)))))
+
 
 (defun settings-load-overrides ()
   "The override alist from user.org. Reloads when the file's mtime OR
 length moved — hand edits are a first-class way to change settings."
-  (let ((path (settings-user-org-path)))
-    (when (probe-file path)
-      (let ((stat (cons (file-write-date path)
-                        (with-open-file (s path) (file-length s)))))
-        (when (or (null *settings-user-org-stat*)
-                  (not (equal stat *settings-user-org-stat*)))
-          (let ((content (read-file-string path))
-                (span (settings--drawer-span content)))
-            (setf *settings-user-org-stat* stat
-                  *settings-overrides*
-                  (if (and span (first span) (second span))
-                      (settings--parse-properties
-                       content (org-scan-lines content)
-                       (first span) (second span))
-                      nil)))))))
+  (let* ((path (settings-user-org-path))
+         (exists (probe-file path)))
+    (when exists
+      (let* ((stat (cons (file-write-date path)
+                         (with-open-file (s path) (file-length s)))))
+        (unless (equal stat *settings-user-org-stat*)
+          (let* ((content (read-file-string path))
+                 (span (settings--drawer-span content))
+                 (props (and span (first span)))
+                 (end (and span (second span))))
+            (when (and props end)
+              (setf *settings-user-org-stat* stat
+                    *settings-overrides*
+                    (settings--parse-properties
+                     content (org-scan-lines content) props end))))))))
   *settings-overrides*)
 
 (defun settings-get (id)
@@ -203,8 +212,6 @@ value."
      (ignore-errors (parse-integer (org-trim raw))))
     (t raw)))
 
-;;; --- The writer ------------------------------------------------------------------
-
 (defun settings--valid-p (type value-string)
   (cond
     ((string-equal type "boolean")
@@ -219,76 +226,95 @@ value."
         (cons (file-write-date path)
               (with-open-file (s path) (file-length s)))))
 
+(defun settings--create-user-org (path id value-string)
+  (ensure-directories-exist (directory-namestring path))
+  (with-open-file (s path :direction :output :if-does-not-exist :create
+                          :external-format :utf-8)
+    (format s "* Settings~%:PROPERTIES:~%:~a: ~a~%:END:~%" id value-string))
+  (settings--note-write path)
+  t)
+
+(defun settings--append-user-org-drawer (path id value-string)
+  (with-open-file (s path :direction :output :if-exists :append
+                          :if-does-not-exist :create
+                          :external-format :utf-8)
+    (format s "~&* Settings~%:PROPERTIES:~%:~a: ~a~%:END:~%"
+            id value-string))
+  (settings--note-write path)
+  t)
+
+(defun settings--rebuild-user-org-drawer (path id value-string)
+  "Rebuild the Settings drawer in place: BEFORE + new drawer + AFTER,
+spliced by byte offset so every byte outside the drawer — including
+the file's trailing-newline behaviour — is preserved."
+  (let ((content (read-file-string path)))
+    (let ((span (settings--drawer-span content)))
+      (when span
+        (let ((props (first span)))
+          (let ((end (second span)))
+            (let ((lines (org-scan-lines content)))
+              ;; Body only: the marker lines themselves are not properties.
+              (let ((old (settings--parse-properties content lines
+                                                     (1+ props) (1- end))))
+                (let ((foreign (remove id old :test #'string-equal :key #'car)))
+                  (let ((body (append (mapcar (lambda (kv)
+                                                (format nil ":~a: ~a" (car kv) (cdr kv)))
+                                              foreign)
+                                      (list (format nil ":~a: ~a" id value-string)))))
+                    (let ((before (subseq content 0
+                                            (settings--line-start content props)))
+                          (after (let ((n (length lines)))
+                                   (if (< end n)
+                                       (subseq content
+                                               (settings--line-start content (1+ end)))
+                                       ""))))
+                      (let ((new-content
+                              (with-output-to-string (out)
+                                (write-string before out)
+                                (write-string ":PROPERTIES:" out)
+                                (terpri out)
+                                (dolist (line body)
+                                  (write-string line out)
+                                  (terpri out))
+                                (write-string ":END:" out)
+                                ;; The old :END: line's own terminator
+                                ;; decides whether ours has one: when
+                                ;; after is empty AND the old file did
+                                ;; not end in a newline, emit none.
+                                (if (and (string= after "")
+                                         (plusp (length content))
+                                         (char/= (char content (1- (length content)))
+                                                  #\Newline))
+                                    nil
+                                    (terpri out))
+                                (write-string after out))))
+                        (let ((tmp (merge-pathnames (make-pathname :type "org.tmp")
+                                                      path)))
+                          (with-open-file (s tmp :direction :output
+                                                  :if-exists :supersede
+                                                  :external-format :utf-8)
+                            (write-string new-content s))
+                          (rename-file tmp path))
+                        (settings--note-write path)
+                        t))))))))))))
+
+(defun settings--line-start (content line)
+  "Byte offset of LINE (1-based) in CONTENT."
+  (loop for i from 0 below (length content)
+        for count = 0 then (if (char= (char content (1- i)) #\Newline)
+                               (1+ count) count)
+        when (= count (1- line)) return i
+        finally (return (length content))))
+
 (defun settings--write-override (id value-string)
-  "Byte-preserving user.org writer. Everything outside the Settings
-drawer belongs to the user — never rewritten, never reordered, and the
-file's own trailing-newline behaviour is kept."
+  "Dispatch: create / append / rebuild — always writing via the small
+flat helpers above, so the failure surface stays shallow."
   (let ((path (settings-user-org-path)))
-    (cond
-      ;; Existing file without a Settings chapter: append one.
-      ((and (probe-file path)
-            (null (settings--drawer-span (read-file-string path))))
-       (with-open-file (s path :direction :output :if-exists :append
-                                :if-does-not-exist :create
-                                :external-format :utf-8)
-         (format s "~&* Settings~%:PROPERTIES:~%:~a: ~a~%:END:~%"
-                 id value-string))
-       (settings--note-write path)
-       t)
-      ;; Existing file with the drawer: rebuild the drawer in place,
-      ;; preserving every byte outside it.
-      ((probe-file path)
-       (let* ((content (read-file-string path))
-              (lines (org-scan-lines content))
-              (span (settings--drawer-span content))
-              (props (first span))
-              (end (second span))
-              (old (settings--parse-properties content lines props end))
-              ;; Keep the user's foreign keys; rebuild only the managed
-              ;; ids (the set id re-emitted last).
-              (foreign (remove id old :test #'string-equal :key #'car))
-              (body (append (mapcar (lambda (kv)
-                                      (format nil ":~a: ~a" (car kv) (cdr kv)))
-                                    foreign)
-                            (list (format nil ":~a: ~a" id value-string))))
-              (ends-with-newline
-               (and (plusp (length content))
-                    (char= (char content (1- (length content))) #\Newline)))
-              (out (make-string-output-stream)))
-         (flet ((emit (line)
-                  (write-string line out)
-                  (terpri out)))
-           (loop for n from 1 to (length lines)
-                 do (cond
-                      ;; The drawer is re-emitted rebuilt: the opener,
-                      ;; the rebuilt body, :END: at the old position.
-                      ((= n props)
-                       (emit ":PROPERTIES:")
-                       (dolist (line body) (emit line)))
-                      ((= n end) (emit ":END:"))
-                      ;; Old managed lines between them are replaced,
-                      ;; not duplicated.
-                      ((and (> n props) (< n end)))
-                      (t (if (= n (length lines))
-                             (if ends-with-newline
-                                 (emit (aref lines (1- n)))
-                                 (write-string (aref lines (1- n)) out))
-                             (emit (aref lines (1- n)))))))))
-         (let ((tmp (merge-pathnames (make-pathname :type "org.tmp") path)))
-           (with-open-file (s tmp :direction :output :if-exists :supersede
-                                   :external-format :utf-8)
-             (write-string (get-output-stream-string out) s))
-           (rename-file tmp path))
-         (settings--note-write path)
-         t))
-      ;; File missing: create it minimal and hand-editable.
-      (t
-       (ensure-directories-exist (directory-namestring path))
-       (with-open-file (s path :direction :output :if-does-not-exist :create
-                               :external-format :utf-8)
-         (format s "* Settings~%:PROPERTIES:~%:~a: ~a~%:END:~%" id value-string))
-       (settings--note-write path)
-       t)))
+    (if (probe-file path)
+        (if (settings--drawer-span (read-file-string path))
+            (settings--rebuild-user-org-drawer path id value-string)
+            (settings--append-user-org-drawer path id value-string))
+        (settings--create-user-org path id value-string))))
 
 (defun settings-set (id value-string)
   "Validate ID/VALUE against the schema, then write the override into
@@ -300,7 +326,6 @@ Returns :ok, :invalid (unknown id or bad value), or :error."
     (unless (settings--valid-p (second entry) value-string)
       (return-from settings-set :invalid))
     (if (settings--write-override id value-string)
-        ;; The daemon must see its own write without a re-read.
         (let ((pair (assoc id *settings-overrides* :test #'string-equal)))
           (if pair
               (setf (cdr pair) value-string)
@@ -461,3 +486,7 @@ generated from the schema."
 section as the viewport document. Overrides land in user.org."
   (interactive)
   (settings-open section))
+
+(defun settings--read-user-org-for-test ()
+  (when (probe-file (settings-user-org-path))
+    (read-file-string (settings-user-org-path))))
