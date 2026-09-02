@@ -9,8 +9,10 @@
 (load "tests/command-tests.lisp")
 (load "tests/keyboard-tests.lisp")
 (load "tests/frames-tests.lisp")
+(load "tests/org-tests.lisp")
 
 (sb-ext:quit :unix-status (if (and (ymacs::run-command-tests)
                                    (ymacs::run-keyboard-tests)
-                                   (ymacs::run-frames-tests))
+                                   (ymacs::run-frames-tests)
+                                   (ymacs::run-org-tests))
                               0 1))

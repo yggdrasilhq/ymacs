@@ -152,12 +152,19 @@ fundamental, lisp-mode, org-mode, python-mode, c-mode, dired, eshell —
 each defines a keymap, syntax table stub, and hook; auto-enabled by
 extension.
 
-** Org mode =[ymacs extension]=
+** Org mode =[ymacs extension]= [status: TODO cycle, checkbox toggle,
+headline nav + node-driven Outline shipped 2026-09-02; folding is
+point-motion v0; agenda scans lines, not nodes]
 
-Org constructs become typed nodes in the emd document model; ymacs
-animates them: =org-cycle= folding, =org-todo= cycling, =org-babel-tangle=,
-agenda views. The sidebar gains org search + heading speed-nav when an
-org buffer has focus (component law, Chapter 3).
+Org constructs become typed nodes in the emd document model (the org
+grammar lives in =emd-renderer=, libyggterm — this file's source of
+truth, contract-locked by the same fixtures on both sides); ymacs
+animates them: =org-todo= cycling through the stock workflow
+(none → TODO → DONE → none, workflow membership checked Lisp-side),
+=org-ctrl-c-ctrl-c= checkbox toggle / babel tangle, =C-c C-n= / =C-c C-p=
+headline motion, =org-babel-tangle=. The Outline sidebar is node-driven:
+level indent, workflow keyword, tag cookie, row =goto-line= moves buffer
+point (component law, Chapter 3).
 
 * Chapter 7: Configuration =[divergence #2]= [status: init.org tangle implemented, user.org planned]
 
