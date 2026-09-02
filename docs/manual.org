@@ -90,20 +90,24 @@ attached to the same daemon. Frame parameters map to row properties;
 =delete-frame= closes the row. Frames are cheap clients; the daemon owns
 state, exactly like emacsclient sessions.
 
-* Chapter 4: Command layer, M-x, and Macros =[parity]= [status: law, recorder bug known]
+* Chapter 4: Command layer, M-x, and Macros =[parity]= [status: implemented, key plane pending]
 
 ** Named commands and M-x
 
-Commands are named functions with interactive specs. =M-x= renders in the
-command palette (a window component fed by the command layer); completion
-is fuzzy. The palette is a *view* — the command layer is what executes.
+Commands are named functions with interactive specs (=defcommand=,
+Emacs-shape). =M-x= renders in the command palette (a window component
+fed by the command layer); completion is fuzzy. The palette is a *view* —
+=command-execute= is what runs; every execution path funnels through it.
+Implemented: =src/core/command.lisp=, contract-tested in CI.
 
 ** Keyboard macros — the macro law
 
 Macros record *command invocations with arguments*, never UI gestures.
 Consequences: a macro recorded through M-x replays identically headless
 (=ymacs --eval=) with no surfaces at all, and palette UI changes can
-never break recorded macros.
+never break recorded macros. Replay never re-records; composition by
+=named= macro records one step. Implemented: recorder lives at the
+command-layer choke point; playback in =src/editing/macro.lisp=.
 
 Bindings: =C-x (= start, =C-x )= end, =C-x e= execute last,
 =name-last-kbd-macro=, =insert-kbd-macro=.

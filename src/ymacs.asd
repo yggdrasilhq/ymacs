@@ -11,6 +11,7 @@
                (:module "core"
                 :components ((:file "rope")
                              (:file "buffer")
+                             (:file "command")
                              (:file "session")
                              (:file "window")
                              (:file "sidebar")

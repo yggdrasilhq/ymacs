@@ -195,24 +195,32 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
   undo, isearch, folding, multiple-cursors modules (unit-level, no key
   input plane yet); org tangle of `init.org`; headless `--eval` verbs;
   ytrace probes; manifest; SBCL/ECL build + CI.
+- **Real since 2026-09-02 (command layer unit):** named commands with
+  interactive specs (`defcommand`), prefix arguments, `command-execute`
+  choke point, real `execute-extended-command` (M-x), and the keyboard
+  macro law — record invocations, never gestures; headless replay;
+  no re-recording. Contract-tested: `tests/command-tests.lisp` (10
+  tests, run in CI).
 - **Skeleton / not yet real (do not claim):** no keystroke input plane
-  (input arrives only as sidebar `/action` posts); keyboard macro recorder
-  stores nothing; `projectile`/`magit`/`treemacs` are name-only stubs; the
-  "90% ELPA/MELPA" figure is a *target*, not a measurement; the manual's
-  "Deep Dive N" appendix was template padding (removed with the 2026-09-02
-  manual rewrite).
+  (input arrives only as sidebar `/action` posts; the command layer is
+  reachable from the palette and headless verbs, not from keys yet);
+  `projectile`/`magit`/`treemacs` are name-only stubs; the "90% ELPA/
+  MELPA" figure is a *target*, not a measurement; the manual's
+  "Deep Dive N" appendix was template padding (removed with the
+  2026-09-02 manual rewrite).
 - **The rebuild order that satisfies this law** (next sessions):
-  1. Command layer (named commands + interactive specs + prefix args) and
-     the real key input plane feeding it — everything else hangs off this.
-  2. Macro recorder at the command layer (§3) + headless replay test.
-  3. Palette component view over M-x/completing-read.
-  4. Frame=row (make-frame → row) and focus-donates-sidebar.
-  5. emd-renderer ownership: ASCII text surface moved into emd-renderer;
-     org typed nodes; ymacs org components (TODO cycle, checkbox, headline
-     sidebar nav).
-  6. Settings system (schema org store, dual-window UI, user.org writer).
-  7. ELPA compat depth measured by a public test corpus (replace the "90%"
-     target with numbers).
+  1. ~~Command layer~~ ✅ done (this unit, minus the key plane itself).
+  2. ~~Macro recorder at the command layer + headless replay test~~ ✅ done.
+  3. Key input plane: PTY/widget key events → prefix accumulation →
+     `command-execute` (the layer is ready to receive them).
+  4. Palette component view over M-x/completing-read (feeds the layer).
+  5. Frame=row (make-frame → row) and focus-donates-sidebar.
+  6. emd-renderer ownership: ASCII text surface moved into emd-renderer;
+     org typed nodes; ymacs org components (TODO cycle, checkbox,
+     headline sidebar nav).
+  7. Settings system (schema org store, dual-window UI, user.org writer).
+  8. ELPA compat depth measured by a public test corpus (replace the
+     "90%" target with numbers).
 
 ## 6. Documentation law — the vendored Emacs manual and divergence markers
 

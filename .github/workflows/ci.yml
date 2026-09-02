@@ -25,6 +25,8 @@ jobs:
           test -f src/ymacs.asd
           test -f src/core/rope.lisp
           test -f src/core/buffer.lisp
+          test -f src/core/command.lisp
+          test -f tests/command-tests.lisp
           test -f src/surfaces/control-server.lisp
           test -f src/elpa/use-package.lisp
           test -f src/elpa/which-key.lisp
@@ -38,6 +40,10 @@ jobs:
             --eval '(asdf:load-system :ymacs)' \
             --eval '(format t "ymacs ~a loaded~%" (asdf:component-version (asdf:find-system :ymacs)))' \
             --quit
+      - name: Command Layer Contract Tests
+        run: |
+          sbcl --noinform --disable-debugger --no-sysinit --no-userinit \
+            --load tests/run-tests.lisp
       - name: Build Binary
         run: |
           sbcl --noinform --disable-debugger --no-sysinit --no-userinit --load build.lisp

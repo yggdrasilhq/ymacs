@@ -53,12 +53,12 @@
 
 (init-default-keymaps)
 
-(defun execute-extended-command (cmd)
-  (let ((sym (find-symbol (string-upcase cmd) :ymacs)))
-    (when sym (funcall sym))))
+;; M-x executes through the command layer (src/core/command.lisp) — the
+;; palette is a view over it, and macros record at that choke point.
 
 (defun keyboard-quit ()
   (setf *isearch-string* "" *current-prefix* "")
+  (cancel-kbd-macro)
   (which-key-hide)
   t)
 
