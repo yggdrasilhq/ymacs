@@ -9,13 +9,16 @@
 (in-package #:ymacs)
 
 (defun sb-dir ()
-  "Disk-backed sandbox under the user's home — never /tmp."
-  (merge-pathnames ".yggterm/scratchpad/ymacs-store/" (user-homedir-pathname)))
+  "Disk-backed sandbox under the user's home — never /tmp. The directory
+   is created on demand: a fresh machine (CI runner) has no scratchpad."
+  (ensure-directories-exist
+   (merge-pathnames ".yggterm/scratchpad/ymacs-store/" (user-homedir-pathname))))
 
 (defvar *store-file-counter* 0)
 
 (defun sb-store-path (name)
   "A FRESH store file per call."
+  (sb-dir)
   (incf *store-file-counter*)
   (merge-pathnames (format nil "~a-~a-~a.sqlite3" name
                            (get-universal-time) *store-file-counter*)
