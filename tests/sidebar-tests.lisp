@@ -86,27 +86,17 @@
     (assert-eq* t (not (null (member "settings" (minibuffer-command-names)
                                      :test #'string=)))))
 
-  (test "bare boot opens the manual; a session keeps its buffers"
-    (let* ((dir (sb-sandbox))
-           (manual (merge-pathnames "manual.org" dir)))
-      (ensure-directories-exist dir)
-      (with-open-file (s manual :direction :output :if-exists :supersede
-                              :external-format :utf-8)
-        (write-string "* The Ymacs Manual~%test fixture~%" s))
-      (let ((*ymacs-manual-path-override* (namestring manual))
-            (*buffers* (make-hash-table :test 'equal))
-            (*current-buffer* nil)
-            (*recent-files* nil))
-        (ensure-default-buffer)
-        (assert-eq* 1 (hash-table-count *buffers*))
-        (assert-eq* t (not (null *current-buffer*)))
-        ;; Second boot with a live session never hijacks it.
-        (let ((kept *current-buffer*))
-          (ensure-default-buffer)
-          (assert-eq* kept *current-buffer*)
-          (assert-eq* 1 (hash-table-count *buffers*))))
-      (setf *ymacs-manual-path-override* nil)
-      (ignore-errors (delete-file manual))))
+  (test "boot never hijacks a live session (store closed, no writes)"
+    ;; ensure-boot-buffers with no store open and no manual override
+    ;; creates only the scratchpad when the session is empty.
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*ymacs-manual-path-override* "/nonexistent/manual.org"))
+      (ensure-boot-buffers)
+      (assert-eq* t (not (null *current-buffer*)))
+      (let ((kept *current-buffer*))
+        (ensure-boot-buffers)
+        (assert-eq* kept *current-buffer*))))
 
   (format t "~a passed, ~a failed~%" *test-pass* *test-fail*)
   (zerop *test-fail*))

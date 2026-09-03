@@ -17,27 +17,12 @@
   (format t "~&[ymacs] Initializing ymacs ~a on libyggterm...~%" *ymacs-version*)
   (setf *startup-time* (get-internal-real-time))
   (register-probe :ymacs-startup :description "Measures cold start time" :fields '(latency-ms))
+  (store-open)
   (restore-session)
   (start-control-server)
   (which-key-register-modern-defaults)
   (modern-helpers-register-which-key)
-  (make-new-buffer "*scratch*" ";; ymacs 0.1.2 — GNU Emacs on libyggterm (SBCL/ECL, ytrace, vertico/consult/corfu)
-;; Welcome to ymacs — modern Emacs with sane defaults.
-
-;; Quick start:
-;;   C-x C-f  find file (vertico + consult)    C-x C-b  switch buffer
-;;   C-x C-s  save (revision guarded)         C-x C-k  kill buffer
-;;   C-c s    toggle Buffers sidebar          M-x      vertico command palette
-;;   which-key shows pending prefixes in the Which Key pane (rail)
-
-;; Buffers live in the single sidebar (max 1 pane) — no window clutter.
-;; Packages: (use-package vertico :ensure t :init (vertico-mode 1))
-;;           (use-package which-key :ensure t :config (which-key-mode 1))
-;; Discarded: ido/helm/ivy/company/linum — modern helpers replace them.
-;; See docs/elpa-melpa-compatibility.md and init.org (literate book).
-
-;; Try M-x eval: (+ 40 2)  — or open a file: ymacs ~/gh/ymacs/README.md
-")
+  (ensure-boot-buffers)
   (when file
     (ignore-errors (open-file-buffer (pathname file))))
   (when config
@@ -50,6 +35,7 @@
 (defun stop ()
   (persist-session)
   (stop-control-server)
+  (store-close)
   (format t "~&[ymacs] Clean shutdown completed.~%"))
 
 ;;; ---- Daemon / client split (emacsclient model) -------------------------
@@ -158,21 +144,48 @@ back to *scratch*."
       (let ((cwd (merge-pathnames "docs/manual.org" (truename "."))))
         (and (probe-file cwd) cwd))))
 
-(defun ensure-default-buffer ()
-  "Bare-boot current buffer: the shipped manual when no buffer exists.
-A restored session keeps its buffers — this never hijacks one."
-  (when (null (list-all-buffers))
-    (let ((manual (ignore-errors (ymacs-manual-path))))
-      (if manual
-          (ignore-errors (open-file-buffer manual))
-          (make-new-buffer "*scratch*"
-                           ";; ymacs — M-x opens the command palette.\n"))))
+(defvar *scratchpad-name* "*scratchpad-01*"
+  "The boot scratchpad. A DB-backed durable buffer — ymacs has no
+memory-only buffers, so scratch text survives crashes.")
+
+(defvar *scratchpad-seed*
+";; ymacs *scratchpad-01* — durable (lives in ~/.yggterm/ymacs/state.sqlite3)
+;; Every ymacs buffer is either a FILE or a row in the store: no work is
+;; ever lost. The daemon is perpetual — M-x sidebar/profiles switches
+;; profile, M-x save-buffers-kill-ymacs is the only way it ends.
+;;
+;; Quick start:  M-x command palette · C-x C-f find file · C-c s Buffers
+;;               M-x info  The Ymacs Manual (this session booted with it)
+")
+
+(defun ensure-boot-buffers ()
+  "Boot law: the session opens with TWO buffers — the manual (active)
+and *scratchpad-01* — both durable (manual = file; scratchpad = store
+row). A restored session that already holds them is left untouched."
+  ;; scratchpad: create-once (store row keyed by name-id survives; the
+  ;; restore above may already have brought it back).
+  (unless (find-if (lambda (b) (string= (buffer-name b) *scratchpad-name*))
+                   (list-all-buffers))
+    (make-new-buffer *scratchpad-name* *scratchpad-seed*))
+  ;; manual: open as a file buffer when reachable and not already open.
+  (let ((manual (ignore-errors (ymacs-manual-path))))
+    (when manual
+      (unless (find-buffer-by-path manual)
+        (ignore-errors (open-file-buffer manual)))))
+  ;; first boot (nothing restored): the manual is what the user sees.
+  (let ((manual-buf (find-if (lambda (b)
+                               (and (buffer-file-path b)
+                                    (search "manual" (namestring (buffer-file-path b))
+                                            :test #'string-equal)))
+                             (list-all-buffers))))
+    (setf *current-buffer* (or manual-buf *current-buffer* (first (list-all-buffers)))))
   *current-buffer*)
 
 (defun run-daemon ()
   "Durable half: store + control endpoint, forever."
+  (store-open)
   (restore-session)
-  (ensure-default-buffer)
+  (ensure-boot-buffers)
   (let ((url (start-control-server)))
     (format t "~&[ymacs daemon] Control at ~a (~a)~%" url (sb-ext:posix-getenv "HOME"))
     ;; SBCL invokes signal handlers with (signal code context) — 3 args.

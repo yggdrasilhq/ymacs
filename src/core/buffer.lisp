@@ -31,6 +31,8 @@
 
 (defun (setf buffer-content) (new-val buf)
   (setf (buffer-rope buf) (rope-from-string new-val))
+  (setf (buffer-modified-p buf) t)
+  (buffer-sync buf)
   new-val)
 
 (defun state-dir ()
@@ -76,8 +78,23 @@
     (setf (gethash id *buffers*) buf)
     (unless *current-buffer*
       (setf *current-buffer* buf))
+    ;; The store law: an unnamed buffer is a DB row the moment it exists.
+    (buffer-sync buf)
     (incf *buffer-epoch*)
     buf))
+
+(defun buffer-sync (buf)
+  "DURABILITY CHOKE POINT. File buffer: crash-safety draft into the
+store's drafts table. Unnamed buffer: the content row IS the save —
+called at create and after every command (command-execute), so no work
+is ever only in memory. No-op until the store is open (unit tests,
+--help), so tests never touch the disk store."
+  (when *store*
+    (unless (and (fboundp 'info-buffer-p) (info-buffer-p buf))
+      (ignore-errors
+       (if (buffer-file-path buf)
+           (store-put-draft (buffer-file-path buf) (buffer-content buf))
+           (store-put-buffer buf))))))
 
 (defun open-file-buffer (pathspec &key (content nil))
   "Open file at PATHSPEC as a buffer. Creates new untitled buffer if file missing.
@@ -153,17 +170,24 @@
     (when buf (setf *current-buffer* buf) t)))
 
 (defun kill-buffer (id)
-  (when (gethash id *buffers*)
-    (remhash id *buffers*)
-    (when (and *current-buffer* (string= (buffer-id *current-buffer*) id))
-      (setf *current-buffer* (first (list-all-buffers))))
-    (incf *buffer-epoch*)
-    t))
+  (let ((buf (gethash id *buffers*)))
+    (when buf
+      (remhash id *buffers*)
+      (when *store*
+        (ignore-errors
+         (if (buffer-file-path buf)
+             (store-delete-draft (buffer-file-path buf))
+             (store-delete-buffer id))))
+      (when (and *current-buffer* (string= (buffer-id *current-buffer*) id))
+        (setf *current-buffer* (first (list-all-buffers))))
+      (incf *buffer-epoch*)
+      t)))
 
 (defun buffer-insert (buf pos text)
   (fire-probe :ymacs-buffer-mutation :buffer-id (buffer-id buf) :operation "insert" :length (length text))
   (setf (buffer-rope buf) (rope-insert (buffer-rope buf) pos text))
   (setf (buffer-modified-p buf) t)
+  (buffer-sync buf)
   (incf *buffer-epoch*)
   (bump-document-version)
   buf)
@@ -172,6 +196,7 @@
   (fire-probe :ymacs-buffer-mutation :buffer-id (buffer-id buf) :operation "delete" :length len)
   (setf (buffer-rope buf) (rope-delete (buffer-rope buf) pos len))
   (setf (buffer-modified-p buf) t)
+  (buffer-sync buf)
   (incf *buffer-epoch*)
   (bump-document-version)
   buf)
@@ -211,73 +236,96 @@
 ;;; ~/.yggterm/ymacs/drafts/<id>.lisp  (full content, not diff).
 ;;; On startup, drafts restore.
 
-(defun drafts-dir ()
-  (merge-pathnames "drafts/" (state-dir)))
-
-(defun draft-path (id)
-  (merge-pathnames (concatenate 'string id ".draft") (drafts-dir)))
+;; Crash-safety drafts live IN the store now (drafts table, per profile);
+;; the legacy drafts/ directory is no longer read or written.
 
 (defun persist-draft (buf)
-  (when (buffer-modified-p buf)
-    (ensure-directories-exist (drafts-dir))
-    (with-open-file (s (draft-path (buffer-id buf)) :direction :output :if-exists :supersede
-                         :external-format :utf-8)
-      (write-string (buffer-content buf) s))))
+  (buffer-sync buf))
 
 (defun delete-draft (path-or-id)
-  (let ((p (merge-pathnames (concatenate 'string (ymacs-note-id (pathname path-or-id)) ".draft")
-                            (drafts-dir))))
-    (ignore-errors (delete-file p)))
-  ;; Also try direct id
-  (ignore-errors (delete-file (draft-path path-or-id))))
+  (when *store*
+    (ignore-errors (store-delete-draft
+                    (if (pathnamep path-or-id) path-or-id (pathname path-or-id))))))
 
 (defun persist-session ()
-  "Write session.json: open buffers, active, epoch."
-  (let* ((dir (ensure-state-dir))
-         (path (merge-pathnames "session.json" dir))
-         (open-buffers (loop for b being the hash-values of *buffers*
-                             when (buffer-file-path b)
-                             collect (namestring (buffer-file-path b))))
-         (active (when *current-buffer* (if (buffer-file-path *current-buffer*)
-                                            (namestring (buffer-file-path *current-buffer*))
-                                            (buffer-id *current-buffer*)))))
-    (with-open-file (s path :direction :output :if-exists :supersede :external-format :utf-8)
-      (write-string (json-encode `(("open" . ,open-buffers)
-                                   ("active" . ,active)
-                                   ("epoch" . ,*buffer-epoch*)
-                                   ("recent" . ,*recent-files*))) s))))
-
-(defun restore-session ()
-  (let ((path (merge-pathnames "session.json" (state-dir))))
-    (when (probe-file path)
+  "The store is the session SSOT: the per-profile open set + active.
+Entry shape: ((\"id\" . id)) for unnamed durable buffers, ((\"path\"
+. path)) for file buffers."
+  (let* ((open-entries
+           (loop for b being the hash-values of *buffers*
+                 collect (if (buffer-file-path b)
+                             (list (cons "path" (namestring (buffer-file-path b))))
+                             (list (cons "id" (buffer-id b))))))
+         (active (when *current-buffer*
+                   (if (buffer-file-path *current-buffer*)
+                       (namestring (buffer-file-path *current-buffer*))
+                       (buffer-id *current-buffer*)))))
+    (when *store*
       (ignore-errors
-        (let* ((json (read-file-string path))
-               (data (json-decode json))
-               (open-list (cdr (assoc "open" data :test #'string=))))
-          (dolist (p open-list)
-            (ignore-errors (open-file-buffer (pathname p))))
-          (let ((active (cdr (assoc "active" data :test #'string=))))
-            (when active
-              (let ((buf (or (find-buffer-by-path active) (get-buffer-by-id active))))
-                (when buf (setf *current-buffer* buf)))))
-          (let ((recent (cdr (assoc "recent" data :test #'string=))))
-            (when recent (setf *recent-files* recent))))))
-    ;; Restore drafts
-    (when (probe-file (drafts-dir))
-      (dolist (draft-file (directory (merge-pathnames "*.draft" (drafts-dir))))
-        (ignore-errors
-          (let* ((id (pathname-name draft-file))
-                 (content (read-file-string draft-file))
-                 (buf (get-buffer-by-id id)))
-            (if buf
-                (setf (buffer-rope buf) (rope-from-string content)
-                      (buffer-modified-p buf) t)
-                ;; Orphan draft: create buffer named after id
-                (let ((nb (make-new-buffer id content)))
-                  (setf (buffer-id nb) id
-                        (buffer-value-key nb) id
-                        (buffer-modified-p nb) t)
-                  (setf (gethash id *buffers*) nb)))))))))
+       (store-save-session open-entries active *buffer-epoch*)))
+    (setf *session-last-save* (get-universal-time))
+    (fire-probe :ymacs-session :action "save" :buffers (hash-table-count *buffers*))
+    t))
+
+(defun restore-session (&key (allow-legacy t))
+  "Store first. A legacy session.json (pre-store) is imported once —
+boot only, never on a profile switch — and the first persist moves
+everything into the store."
+  (multiple-value-bind (entries active epoch present-p)
+      (ignore-errors (store-load-session))
+    (if present-p
+        (progn
+          (dolist (e entries)
+            (let ((id (cdr (assoc "id" e :test #'string=)))
+                  (path (cdr (assoc "path" e :test #'string=))))
+              (cond
+                (id (restore-unnamed-from-store id))
+                ((and path (plusp (length path)))
+                 (ignore-errors (open-file-buffer path))))))
+          (let ((hit (or (and active (gethash active *buffers*))
+                         (and active (plusp (length active))
+                              (ignore-errors
+                               (find-buffer-by-path (pathname active)))))))
+            (when hit (setf *current-buffer* hit)))
+          (when epoch (setf *buffer-epoch* epoch)))
+        (let ((path (and allow-legacy
+                         (merge-pathnames "session.json" (state-dir)))))
+          (when (and path (probe-file path))
+            (ignore-errors
+              (let* ((json (read-file-string path))
+                     (data (json-decode json))
+                     (open-list (cdr (assoc "open" data :test #'string=))))
+                (dolist (p open-list)
+                  (ignore-errors (open-file-buffer (pathname p))))
+                (let ((a (cdr (assoc "active" data :test #'string=))))
+                  (when a
+                    (let ((buf (or (find-buffer-by-path a) (get-buffer-by-id a))))
+                      (when buf (setf *current-buffer* buf))))))
+              (let ((recent (ignore-errors
+                              (let* ((json (read-file-string path))
+                                     (data (json-decode json)))
+                                (cdr (assoc "recent" data :test #'string=))))))
+                (when recent (setf *recent-files* recent))))))))
+  (fire-probe :ymacs-session :action "restore" :buffers (hash-table-count *buffers*))
+  t)
+
+(defun restore-unnamed-from-store (id)
+  "Recreate one unnamed durable buffer from its store row."
+  (multiple-value-bind (name content kind) (ignore-errors (store-get-buffer id))
+    (declare (ignore kind))
+    (let ((buf (make-buffer :id id
+                            :name (or name id)
+                            :rope (rope-from-string (or content ""))
+                            :point 0
+                            :mark 0
+                            :modified-p nil
+                            :value-key id
+                            :loaded-revision "store"
+                            :created-at (get-universal-time)
+                            :file-path nil)))
+      (setf (gethash id *buffers*) buf)
+      (when (null *current-buffer*) (setf *current-buffer* buf))
+      buf)))
 
 ;;; Minimal JSON encode/decode for session.json (no external dep).
 (defun json-encode (alist)
@@ -355,3 +403,5 @@
         (push (cons "active" active) result)
         (push (cons "epoch" epoch) result)
         result))))
+
+

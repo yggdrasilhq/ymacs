@@ -202,6 +202,10 @@ by replay. Every other call site in ymacs must go through here."
     (when (and record *macro-recording*
                (not (member sym '(start-kbd-macro end-kbd-macro cancel-kbd-macro))))
       (macro-record-entry (list :command (or sym fn) :args (copy-list values) :prefix *prefix-arg*)))
+    ;; The durability choke point: every command's effect on the current
+    ;; buffer lands in the store before the next keystroke arrives.
+    (when (and *current-buffer* *store*)
+      (buffer-sync *current-buffer*))
     (let ((result (apply fn values)))
       ;; The prefix is consumed by the command that read it; the one
       ;; command that CREATES a prefix must keep it.

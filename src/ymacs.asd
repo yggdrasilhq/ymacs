@@ -6,10 +6,11 @@
   :license "GPL-3.0-or-later"
   :version "0.1.2"
   :serial t
-  :depends-on (:sb-bsd-sockets)
+  :depends-on (:sb-bsd-sockets :cffi :sqlite)
   :components ((:file "package")
                (:module "core"
                 :components ((:file "rope")
+                             (:file "store")
                              (:file "buffer")
                              (:file "command")
                              (:file "frames")
@@ -17,7 +18,8 @@
                              (:file "window")
                              (:file "sidebar")
                              (:file "window-manager")
-                             (:file "settings")))
+                             (:file "settings")
+                             (:file "profiles")))
                (:module "surfaces"
                 :components ((:file "osc7717")
                              (:file "control-server")))
@@ -49,7 +51,8 @@
                 :components ((:file "keymap")
                              (:file "minibuffer")
                              (:file "modeline")
-                             (:file "keyboard")))
+                             (:file "keyboard")
+                             (:file "info")))
                (:file "full-emacs")
                (:file "manifest")
                (:file "main")))

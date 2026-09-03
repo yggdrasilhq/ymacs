@@ -7,7 +7,7 @@
 (defun write-manifest-best-effort ()
   (handler-case
       (let* ((home (or (sb-ext:posix-getenv "HOME") (namestring (user-homedir-pathname))))
-             (binary "/home/pi/.local/bin/ymacs")
+             (binary (merge-pathnames ".local/bin/ymacs" (user-homedir-pathname)))
              (dir (merge-pathnames "apps/" (parse-namestring (concatenate 'string home "/.yggterm/")))))
         (ensure-directories-exist dir)
         (let ((path (merge-pathnames "ymacs.json" dir)))

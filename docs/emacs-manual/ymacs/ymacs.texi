@@ -1,0 +1,174 @@
+\input texinfo   @c -*-texinfo -*-
+@c %**start of header
+@setfilename ymacs.info
+@documentencoding UTF-8
+@settitle The Ymacs Manual
+@include ../emacs/docstyle.texi
+@include ../emacs/emacsver.texi
+@c %**end of header
+
+@copying
+This manual documents Ymacs, a GNU Emacs fork on libyggterm.
+
+Copyright @copyright{} 2026 Avikalpa Kundu.
+
+@quotation
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.
+@end quotation
+@end copying
+
+@titlepage
+@title The Ymacs Manual
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top Ymacs
+This manual describes the Ymacs-specific additions: durable buffers,
+profiles, the perpetual session, the store layout, and Info mode. For
+everything unchanged from GNU Emacs, read the vendored Emacs manual
+(@file{docs/emacs-manual/emacs/}) — chapters here only cover where
+Ymacs deliberately differs or extends, and every extension is also
+recorded in the divergence ledger
+(@file{docs/emacs-manual/divergences.org}).
+@end ifnottex
+
+@menu
+* Durable Buffers::      Every buffer is a file or a store row.
+* Profiles::             Chrome-style tab sets for your whole editor.
+* The Perpetual Session:: ymacs never ends by accident.
+* The Store::            What lives under ~/.yggterm/ymacs.
+* Info Mode::            Reading this manual inside ymacs.
+@end menu
+
+@node Durable Buffers
+@chapter Durable Buffers
+
+@cindex durable buffers
+@cindex unnamed buffers
+@cindex scratch, durability of
+GNU Emacs keeps unnamed buffers (@samp{*scratch*}) in memory only: kill
+the process at the wrong moment and the work is gone. Ymacs replaces
+that law outright.
+
+@strong{Every Ymacs buffer is either a file or a row in the store.}
+There is no third state and no memory-only buffer.
+
+@itemize @bullet
+@item
+A buffer visiting a file is saved to that file, exactly as in Emacs
+(@pxref{Save Commands,,, emacs, The Emacs Manual}). Its crash-safety
+draft lives in the store's @code{drafts} table, not in loose files.
+@item
+A buffer with no file (scratchpads, captured output, the palette's
+internal state) is a row in the @code{buffers} table of the live
+profile's store. The write happens at creation and at every command —
+@kbd{C-x C-s} is unnecessary for unnamed buffers because @emph{the
+write is the save}.
+@end itemize
+
+The durability choke point is the command layer: every command's
+effect on the current buffer is in the store before the next
+keystroke is read. That is what makes macros replay headless and what
+makes work impossible to lose.
+
+@node Profiles
+@chapter Profiles
+
+@cindex profiles
+@cindex sidebar/profiles
+Ymacs has @dfn{profiles}, in the sense of a web browser's tab sets
+(@pxref{Profiles,,, ychrome}): a named window over a set of buffers.
+The profile named @samp{default} exists from first boot.
+
+@table @kbd
+@item M-x sidebar/profiles @key{RET}
+Open the Profiles sidebar: every profile with the live one marked, and
+a field to create a new one. Selecting a row switches profile.
+@item M-x ymacs-switch-profile @key{RET} @var{name} @key{RET}
+Switch profile by name.
+@end table
+
+Switching a profile persists the current profile's open buffer set,
+empties the window, and loads the target's — the daemon never stops,
+no buffer is deleted, and the other profile's buffers are untouched.
+Buffers of one profile are never the business of another.
+
+@strong{ymacs is perpetual.} A GUI restart, a profile switch, an ssh
+drop — none of them end the daemon and none of them lose work. The one
+way ymacs ends is explicit:
+
+@table @kbd
+@item M-x save-buffers-kill-ymacs @key{RET}
+Persist every buffer and the session, then stop the daemon.
+@end table
+
+@node The Perpetual Session
+@chapter The Perpetual Session
+
+@cindex perpetual session
+@cindex session restore
+The daemon is the durable half of ymacs (the emacsclient model).
+Clients — terminal rows, GUI surfaces, headless verbs — come and go;
+the daemon holds buffers, the store, and the control endpoint. On any
+boot the session is restored from the store: the open set and the
+active buffer, per profile. A @file{session.json} from before the
+store existed is imported once and then retired.
+
+@node The Store
+@chapter The Store
+
+@cindex store layout
+@cindex ~/.yggterm/ymacs
+Everything ymacs keeps lives under one directory:
+
+@example
+~/.yggterm/ymacs/
+  state.sqlite3      The store (buffers, drafts, session, profiles).
+  control-url        The live daemon's control endpoint.
+  daemon.log         The daemon's log.
+  user.org           Machine-level settings overrides.
+  profiles/
+    default/         Per-profile directory (created on first use).
+    work/            ...one directory per profile.
+  packages/          Package caches (ELPA-style archives land here).
+  manual.org snapshot is installed to ~/.local/share/ymacs/manual.org.
+@end example
+
+The base @file{~/.yggterm/ymacs/} directory caches packages and holds
+the essentials that are machine-wide. Each profile directory holds
+that profile's own overrides; @file{profiles/@var{name}/init.lisp} is
+evaluated after the shipped @file{init.lisp} defaults, in the same
+layering spirit as @file{user.org} for settings (@pxref{Init File}).
+An init file that does not exist simply contributes nothing.
+
+@node Info Mode
+@chapter Info Mode
+
+@cindex Info mode
+@cindex manual, reading
+Ymacs ships an Info reader for the forked manual. The sources live in
+@file{docs/emacs-manual/ymacs/}; @command{makeinfo} builds
+@file{ymacs.info}, and the installation script puts the built manual
+where the daemon finds it.
+
+@table @kbd
+@item M-x info @key{RET}
+Open the Ymacs manual.
+@end table
+
+Inside the manual buffer: @kbd{n} next node, @kbd{p} previous node,
+@kbd{u} up, @kbd{RET} follow the menu/reference under point,
+@kbd{l} back in the history, @kbd{q} quit the manual window. The
+reader follows the Emacs Info interface so the fingers transfer; where
+it deliberately diverges, the divergence ledger says so.
+
+@bye
