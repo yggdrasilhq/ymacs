@@ -113,3 +113,20 @@ cost.
   (indices, cross-ref completion and =Info-goto-node= completion are
   open work); Info files for the vendored corpus are readable by the
   external =info= reader meanwhile.
+
+* D9 — The ribbon: tab-bar-mode and tool-bar-mode fuse into one strip [adopted 2026-09-04]
+
+- Emacs node: (emacs) Tab Bars / (emacs) Tool Bars
+- What: ymacs has ONE top chrome, the ribbon (docs/spec-ribbon.md): a
+  tab strip pinned on yggterm's background chrome over a floating
+  command panel. =tab-bar-mode= is THE switch for it, and
+  =tool-bar-mode= is an alias of it — there is no separate icon tool
+  bar and no Emacs-style window-configuration tabs; a ribbon "tab" is
+  a command-group page (Home/Edit/View/...), not a saved window state.
+- Why: the yggterm host renders one top strip per viewport; Excel's
+  ribbon shape is the modernism ymacs adopts, and two modes gating one
+  strip would be two encodings of one fact.
+- Compat cost: Elisp that treats =tab-bar-tabs= as window
+  configurations, or expects =tool-bar-mode= to toggle icons, breaks;
+  the ymacs =tab-bar-*= API (add/remove tabs, groups, buttons) is the
+  extension point instead.
