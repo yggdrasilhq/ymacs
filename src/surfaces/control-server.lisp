@@ -202,9 +202,24 @@ arrive RAW in the alist — this is the JSON contract, not an option."
         (#\Tab (write-string "\\t" out))
         (otherwise (write-char ch out))))))
 
+(defun json-bool (x)
+  "Strict JSON boolean for schema slots: the GUI validator rejects null
+where it expects a boolean, and Lisp nil is the common nothing. T stays
+T, everything else is an explicit false — never null."
+  (if x t :false))
+
+(defun settings-get-bool (id fallback)
+  "Boolean setting with a compiled FALLBACK: when the book is unreachable
+there is no authority, so the shipped default stands in — the schema must
+still validate. Reachable book: override-or-default, strictly."
+  (if (ignore-errors (settings-schema-path))
+      (json-bool (settings-get id))
+      (json-bool fallback)))
+
 (defun json-value-encode (v)
   (cond
     ((eq v t) "true")
+    ((eq v :false) "false")
     ((null v) "null")
     ((stringp v) (format nil "\"~a\"" (json-escape-string v)))
     ((numberp v) (princ-to-string v))
@@ -262,13 +277,13 @@ arrive RAW in the alist — this is the JSON contract, not an option."
                                (vector
                                 `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
                                 `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
-                                  ("line_numbers" . ,(settings-get "editor.line-numbers"))
-                                  ("word_wrap" . ,(settings-get "editor.word-wrap"))
+                                  ("line_numbers" . ,(settings-get-bool "editor.line-numbers" t))
+                                  ("word_wrap" . ,(settings-get-bool "editor.word-wrap" t))
                                   ("value" . ,content) ("value_key" . ,id)
                                   ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
                                 `(("kind" . "toolbar") ("id" . "doc-toolbar")
                                   ("buttons" . ,(vector
-                                                 `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(buffer-modified-p buf)))
+                                                 `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(json-bool (buffer-modified-p buf))))
                                                  `(("action" . "settings") ("label" . "⚙ Settings") ("title" . "Settings (M-x settings)"))
                                                  `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
                                                  `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))))))))
@@ -290,7 +305,7 @@ arrive RAW in the alist — this is the JSON contract, not an option."
             (modified (buffer-modified-p buf))
             (active (and *current-buffer* (string= (buffer-id *current-buffer*) (buffer-id buf)))))
         (push `(("kind" . "list-row") ("id" . ,bid) ("title" . ,title) ("subtitle" . ,subtitle)
-                ("selected" . ,active) ("status" . ,(if modified "transient" "durable"))
+                ("selected" . ,(json-bool active)) ("status" . ,(if modified "transient" "durable"))
                 ("row_action" . "switch-buffer")
                 ("actions" . ,(vector `(("action" . "close-buffer") ("label" . "✕") ("title" . "Close"))))
                 ("menu" . ,(vector `(("action" . "rename-buffer") ("label" . "Rename"))

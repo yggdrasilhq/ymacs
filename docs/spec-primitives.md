@@ -306,6 +306,16 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      empty specs. Still stubs, honestly: org commands keep bare
      interactive specs (key-dispatched, not yet M-x named); there is no
      project view (removed from the pane list, never served one).
+   - **Strict schema booleans + filename titles (2026-09-03):** the
+     document surface painted "schema is malformed: invalid type: null,
+     expected a boolean" — `line_numbers`/`word_wrap` read nil without a
+     book, `primary`/`selected` read nil when off, and the encoder wrote
+     null. Boolean slots now go through `json-bool` (nil becomes an
+     explicit false); editor bits fall back to shipped defaults when the
+     book is unreachable. File buffers display the filename (Emacs
+     parity); identity stays the full path. Contract:
+     `tests/schema-tests.lisp` (8 tests); two settings tests updated to
+     the strict wire contract.
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 

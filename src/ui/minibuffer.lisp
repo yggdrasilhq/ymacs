@@ -216,5 +216,5 @@ palette key (the caller keeps its own reset semantics)."
          ("action" . "minibuffer-accept"))
         ,@(loop for (i cand) in rows
                 collect `(("kind" . "list-row") ("id" . ,cand) ("title" . ,cand)
-                          ("selected" . ,(= i *minibuffer-selected*))
+                          ("selected" . ,(json-bool (= i *minibuffer-selected*)))
                           ("row_action" . "minibuffer-select")))))))
