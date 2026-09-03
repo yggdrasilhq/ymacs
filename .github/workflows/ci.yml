@@ -52,6 +52,7 @@ jobs:
             --eval '(require :asdf)' \
             --eval '(push #P"./" asdf:*central-registry*)' \
             --eval '(push #P"./src/" asdf:*central-registry*)' \
+            --eval '(when (probe-file "vendor/") (dolist (sd (directory "vendor/*/")) (pushnew sd asdf:*central-registry*)))' \
             --eval '(asdf:load-system :ymacs)' \
             --eval '(format t "ymacs ~a loaded~%" (asdf:component-version (asdf:find-system :ymacs)))' \
             --quit
