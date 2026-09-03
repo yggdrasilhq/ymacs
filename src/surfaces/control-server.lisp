@@ -466,6 +466,28 @@ still validate. Reachable book: override-or-default, strictly."
         (coerce (append (coerce base 'list) mb) 'vector)
         base)))
 
+(defun document-toolbar-buttons (buf)
+  "The tool-bar-mode buttons, shared by every ribbon. Save reads BUF
+(nil when no buffer is current — its primary flag is then false and
+the action toasts No file instead of touching anything)."
+  (vector
+   `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)")
+     ("primary" . ,(json-bool (and buf (buffer-modified-p buf)))))
+   `(("action" . "settings") ("label" . "⚙ Settings") ("title" . "Settings (M-x settings)"))
+   `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
+   `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))
+
+(defun document-ribbon (buf label-text)
+  "The ribbon region for the document schema: buffer label + quick-access
+toolbar, or NIL when tool-bar-mode is off (the host then gives the card
+the full rect). LABEL-TEXT carries the pending key sequence, so the top
+bar's removal costs no which-key signal."
+  (when *tool-bar-visible*
+    (vector
+     `(("kind" . "label") ("text" . ,label-text))
+     `(("kind" . "toolbar") ("id" . "tool-bar")
+       ("buttons" . ,(document-toolbar-buttons buf))))))
+
 (defun document-schema ()
   ;; While settings are open the settings document OWNS the viewport
   ;; (M-x settings); the shell keeps native key handling there — the
@@ -481,22 +503,19 @@ still validate. Reachable book: override-or-default, strictly."
                   (pending (key-sequence-string)))
               `(("title" . ,(format nil "ymacs — ~a~a" name mod))
                 ("key_capture" . t)
+                ("ribbon" . ,(document-ribbon
+                               buf
+                               (format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))))
                 ("widgets" . ,(document-schema-widgets
                                (vector
-                                `(("kind" . "label") ("text" . ,(format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))) ("muted" . t))
                                 `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
                                   ("line_numbers" . ,(settings-get-bool "editor.line-numbers" t))
                                   ("word_wrap" . ,(settings-get-bool "editor.word-wrap" t))
                                   ("value" . ,content) ("value_key" . ,id)
-                                  ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))
-                                `(("kind" . "toolbar") ("id" . "doc-toolbar")
-                                  ("buttons" . ,(vector
-                                                 `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)") ("primary" . ,(json-bool (buffer-modified-p buf))))
-                                                 `(("action" . "settings") ("label" . "⚙ Settings") ("title" . "Settings (M-x settings)"))
-                                                 `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
-                                                 `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))))))))
+                                  ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers")))))))
             `(("title" . "ymacs")
               ("key_capture" . t)
+              ("ribbon" . ,(document-ribbon nil "ymacs — GNU Emacs on libyggterm"))
               ("widgets" . ,(document-schema-widgets
                              (vector
                               `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
