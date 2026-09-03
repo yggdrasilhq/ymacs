@@ -47,29 +47,235 @@
     (setf *control-listener* nil
           *control-url* nil)))
 
+(define-condition json-parse-error (error)
+  ((pos :initarg :pos :reader json-error-pos)
+   (msg :initarg :msg :reader json-error-msg))
+  (:report (lambda (c s)
+             (format s "JSON parse error at ~a: ~a"
+                     (json-error-pos c) (json-error-msg c)))))
+
+(defun json-ws-p (ch)
+  (find ch '(#\Space #\Tab #\Return #\Newline #\Null)))
+
+(defun json-parse (str)
+  "Parse STR (a JSON document) into alists/lists: objects become alists
+with string keys (the handle-action contract), arrays become lists,
+true/false/null become T/:FALSE/NIL, numbers become numbers. Signals
+JSON-PARSE-ERROR on malformed input — the flat scanner it replaces
+could not see nested objects at all, so every GUI action carrying
+values (keys, drafts, palette input) arrived as garbage."
+  (multiple-value-bind (value pos) (json-read-value str 0)
+    (let ((end (json-skip-ws str pos)))
+      (unless (>= end (length str))
+        (error 'json-parse-error :pos end :msg "trailing characters"))
+      value)))
+
+(defun json-skip-ws (str pos)
+  (let ((len (length str)))
+    (loop while (and (< pos len) (json-ws-p (char str pos))) do (incf pos))
+    pos))
+
+(defun json-read-value (str pos)
+  (let ((pos (json-skip-ws str pos)))
+    (unless (< pos (length str))
+      (error 'json-parse-error :pos pos :msg "unexpected end"))
+    (let ((ch (char str pos)))
+      (cond
+        ((char= ch #\{) (json-read-object str (1+ pos)))
+        ((char= ch #\[) (json-read-array str (1+ pos)))
+        ((char= ch #\") (json-read-string str (1+ pos)))
+        ((char= ch #\t) (json-read-literal str pos "true" t))
+        ((char= ch #\f) (json-read-literal str pos "false" :false))
+        ((char= ch #\n) (json-read-literal str pos "null" nil))
+        (t (json-read-number str pos))))))
+
+(defun json-read-literal (str pos spelling value)
+  (unless (and (<= (+ pos (length spelling)) (length str))
+               (string= str spelling :start1 pos :end1 (+ pos (length spelling))))
+    (error 'json-parse-error :pos pos :msg (format nil "bad literal, wanted ~a" spelling)))
+  (values value (+ pos (length spelling))))
+
+(defun json-read-number (str pos)
+  (let ((len (length str)) (end pos))
+    (loop while (and (< end len)
+                     (find (char str end) "-+0123456789.eE"))
+          do (incf end))
+    (when (= end pos)
+      (error 'json-parse-error :pos pos :msg "bad value"))
+    (let ((token (subseq str pos end)))
+      (unless (ignore-errors
+               (if (find-if (lambda (c) (find c ".eE")) token)
+                   (let ((*read-eval* nil)) (read-from-string token))
+                   (parse-integer token)))
+        (error 'json-parse-error :pos pos :msg "bad number"))
+      (values (if (find-if (lambda (c) (find c ".eE")) token)
+                  (let ((*read-eval* nil)) (read-from-string token))
+                  (parse-integer token))
+              end))))
+
+(defun json-hex4 (str pos)
+  (let ((n 0))
+    (dotimes (k 4 n)
+      (let* ((ch (if (< (+ pos k) (length str)) (char str (+ pos k)) #\Space))
+             (d (digit-char-p ch 16)))
+        (unless d
+          (error 'json-parse-error :pos (+ pos k) :msg "bad \\u escape"))
+        (setf n (+ (* n 16) d))))))
+
+(defun json-read-string (str pos)
+  "STR/POS just past the opening quote. Returns (values string new-pos)
+with new-pos past the closing quote."
+  (let ((len (length str)) (out (make-string-output-stream)))
+    (loop while t do
+      (unless (< pos len)
+        (error 'json-parse-error :pos pos :msg "unterminated string"))
+      (let ((ch (char str pos)))
+        (cond
+          ((char= ch #\")
+           (return (values (get-output-stream-string out) (1+ pos))))
+          ((char= ch #\\)
+           (incf pos)
+           (unless (< pos len)
+             (error 'json-parse-error :pos pos :msg "lone backslash"))
+           (let ((esc (char str pos)))
+             (case esc
+               (#\" (write-char #\" out))
+               (#\\ (write-char #\\ out))
+               (#\/ (write-char #\/ out))
+               (#\b (write-char #\Backspace out))
+               (#\f (write-char #\Page out))
+               (#\n (write-char #\Newline out))
+               (#\r (write-char #\Return out))
+               (#\t (write-char #\Tab out))
+               (#\u
+                (let ((hi (json-hex4 str (1+ pos))))
+                  (cond
+                    ;; High surrogate: must pair with \uDC00-DFFF.
+                    ((and (<= #xD800 hi) (<= hi #xDBFF))
+                     (unless (and (< (+ pos 5) len)
+                                  (char= (char str (+ pos 5)) #\\)
+                                  (< (+ pos 6) len)
+                                  (char= (char str (+ pos 6)) #\u))
+                       (error 'json-parse-error :pos pos :msg "lone surrogate"))
+                     (let ((lo (json-hex4 str (+ pos 7))))
+                       (unless (and (<= #xDC00 lo) (<= lo #xDFFF))
+                         (error 'json-parse-error :pos pos :msg "lone surrogate"))
+                       (write-char (code-char (+ #x10000
+                                                 (* (- hi #xD800) #x400)
+                                                 (- lo #xDC00)))
+                                   out))
+                     (incf pos 10))
+                    ;; Lone low surrogate: replacement, never a crash.
+                    ((and (<= #xDC00 hi) (<= hi #xDFFF))
+                     (write-char #\Replacement_Character out)
+                     (incf pos 4))
+                    (t (write-char (code-char hi) out)
+                       (incf pos 4)))))
+               (t (error 'json-parse-error :pos pos :msg "bad escape"))))
+           (incf pos))
+          (t (write-char ch out) (incf pos)))))))
+
+(defun json-read-object (str pos)
+  (let ((len (length str)) (pairs nil))
+    (setf pos (json-skip-ws str pos))
+    (when (and (< pos len) (char= (char str pos) #\}))
+      (return-from json-read-object (values nil (1+ pos))))
+    (loop while t do
+      (setf pos (json-skip-ws str pos))
+      (unless (and (< pos len) (char= (char str pos) #\"))
+        (error 'json-parse-error :pos pos :msg "object key must be a string"))
+      (multiple-value-bind (key p2) (json-read-string str (1+ pos))
+        (setf pos (json-skip-ws str p2))
+        (unless (and (< pos len) (char= (char str pos) #\:))
+          (error 'json-parse-error :pos pos :msg "object needs :"))
+        (multiple-value-bind (val p3) (json-read-value str (1+ pos))
+          (push (cons key val) pairs)
+          (setf pos (json-skip-ws str p3))
+          (unless (< pos len)
+            (error 'json-parse-error :pos pos :msg "unterminated object"))
+          (let ((ch (char str pos)))
+            (cond
+              ((char= ch #\,) (incf pos))
+              ((char= ch #\}) (return (values (nreverse pairs) (1+ pos))))
+              (t (error 'json-parse-error :pos pos :msg "object needs , or }")))))))))
+
+(defun json-read-array (str pos)
+  (let ((len (length str)) (items nil))
+    (setf pos (json-skip-ws str pos))
+    (when (and (< pos len) (char= (char str pos) #\]))
+      (return-from json-read-array (values nil (1+ pos))))
+    (loop while t do
+      (multiple-value-bind (val p2) (json-read-value str pos)
+        (push val items)
+        (setf pos (json-skip-ws str p2))
+        (unless (< pos len)
+          (error 'json-parse-error :pos pos :msg "unterminated array"))
+        (let ((ch (char str pos)))
+          (cond
+            ((char= ch #\,) (setf pos (1+ pos)))
+            ((char= ch #\]) (return (values (nreverse items) (1+ pos))))
+            (t (error 'json-parse-error :pos pos :msg "array needs , or ]"))))))))
+
+(defun read-byte-line (stream)
+  "One ASCII line from binary STREAM (CR stripped). Second value is NIL
+on EOF before any byte."
+  (let ((out (make-string-output-stream)) (got nil))
+    (loop for b = (read-byte stream nil nil)
+          while (and b (/= b 10))
+          do (setf got t)
+             (unless (= b 13) (write-char (code-char b) out)))
+    (values (get-output-stream-string out) (or got (not (null out))))))
+
+(defun read-byte-headers (stream)
+  (loop for (line ok) = (multiple-value-list (read-byte-line stream))
+        while (and ok (plusp (length line)))
+        collect (let ((colon (position #\: line)))
+                  (when colon
+                    (cons (string-trim '(#\Space) (subseq line 0 colon))
+                          (string-trim '(#\Space #\Return) (subseq line (1+ colon))))))))
+
+(defun read-byte-body (stream nbytes)
+  (let ((octets (make-array nbytes :element-type '(unsigned-byte 8))))
+    (loop for i from 0 below nbytes
+          for b = (read-byte stream nil nil)
+          while b do (setf (aref octets i) b)
+          finally (return (sb-ext:octets-to-string
+                           (if (= i nbytes) octets (subseq octets 0 i))
+                           :external-format :utf-8)))))
+
+(defun write-bytes (stream string)
+  (write-sequence (sb-ext:string-to-octets string :external-format :utf-8)
+                  stream)
+  (force-output stream))
+
 (defun handle-client (sock)
+  ;; Binary stream throughout: Content-Length counts BYTES, and a
+  ;; character stream would block asking for N *characters* when a
+  ;; non-ASCII body holds fewer (the old read hung every emoji draft).
   (let* ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t
-                                                    :element-type 'character
-                                                    :external-format :utf-8
+                                                    :element-type '(unsigned-byte 8)
                                                     :buffering :none))
          (start (get-internal-real-time)))
     (unwind-protect
-         (let* ((request-line (read-line stream nil nil))
-                (parts (when request-line (split-whitespace request-line)))
+         (let* ((request-line (read-byte-line stream))
+                (parts (when (plusp (length request-line)) (split-whitespace request-line)))
                 (method (first parts))
                 (target (second parts))
                 (path (when target (first (split-once target "?"))))
                 (query (when target (second (split-once target "?"))))
-                (headers (read-headers stream))
+                (headers (read-byte-headers stream))
                 (content-length (parse-integer (or (cdr (assoc "content-length" headers :test #'string-equal)) "0") :junk-allowed t))
                 (body (when (and content-length (> content-length 0))
-                        (let ((buf (make-string content-length)))
-                          (read-sequence buf stream)
-                          buf)))
-                (body-json (when body (or (ignore-errors (parse-flat-json body)) (ignore-errors (json-decode body))))))
+                        (read-byte-body stream content-length)))
+                (body-json (when (and body (plusp (length body)))
+                             (handler-case (json-parse body)
+                               (json-parse-error (e)
+                                 (list (cons "__parse_error" (princ-to-string e))))))))
            (let ((response
                    (handler-case
                        (cond
+                          ((cdr (assoc "__parse_error" body-json :test #'string=))
+                           (json-encode-response `(("ok" . nil) ("error" . "bad request json"))))
                           ((and (string= method "GET") (string= path "/ping"))
                            (json-encode-response `(("ok" . t) ("app_name" . "ymacs") ("document_version" . ,(document-version)))))
                           ((and (string= method "GET") (string= path "/pane/doc"))
@@ -88,8 +294,7 @@
                           ((and (string= method "GET") (string= path "/pane/settings"))
                            (json-encode-response (settings-pane-schema)))
                           ((and (string= method "POST") (string= path "/open"))
-                           (let* ((raw (or (cdr (assoc "path" body-json :test #'string=))
-                                           (extract-json-field body "path")))
+                           (let* ((raw (cdr (assoc "path" body-json :test #'string=)))
                                   (result (when raw (ignore-errors (open-file-buffer (pathname raw))))))
                              (if result
                                  (json-encode-response `(("ok" . t) ("id" . ,(buffer-id result)) ("document_version" . ,(document-version))))
@@ -104,6 +309,9 @@
              (write-response stream 200 response)))
       (ignore-errors (close stream)))))
 
+;;;; NOTE: parse-flat-json is SUPERSEDED on ingress (json-parse owns
+;;;; request bodies): it cannot see nested objects. Kept for the tested
+;;;; escape-scan behavior only.
 (defun parse-flat-json (str)
   (let ((result nil) (i 0) (len (length str)))
     (loop while (< i len) do
@@ -247,9 +455,9 @@ still validate. Reachable book: override-or-default, strictly."
   ;; Content-Length counts UTF-8 BYTES on the wire, not characters:
   ;; document schemas carry emoji labels (💾 ⚙ 🗂 ⌨), 1 char = 4 bytes.
   ;; (length body) under-counts and truncates every schema fetch.
-  (format stream "HTTP/1.1 ~a OK~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
-          status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)
-  (force-output stream))
+  (write-bytes stream
+               (format nil "HTTP/1.1 ~a OK~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
+          status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)))
 
 (defun document-schema-widgets (base)
   "BASE widgets plus the palette's widgets while a read is in flight."
@@ -361,7 +569,7 @@ still validate. Reachable book: override-or-default, strictly."
          (values-alist (cdr (assoc "values" body-json :test #'string=)))
          (value-keys (cdr (assoc "value_keys" body-json :test #'string=)))
          (target-id (or (cdr (assoc "rename:buffers" values-alist :test #'string=))
-                        (cdr (assoc "value" body-json :test #'string=))
+                        (cdr (assoc "value" values-alist :test #'string=))
                         (cdr (assoc "editor" values-alist :test #'string=)))))
     (declare (ignore target-id))
     (cond
@@ -377,19 +585,21 @@ still validate. Reachable book: override-or-default, strictly."
            (setf (buffer-rope *current-buffer*) (rope-from-string draft))
            (setf (buffer-modified-p *current-buffer*) t)
            (persist-draft *current-buffer*))
-         (when *current-buffer*
-           (let ((res (buffer-save *current-buffer*)))
-             (cond
-               ((eq res :saved) `(( "toast" . "Saved")))
-               ((eq res :conflict) `(( "toast" . "Conflict — file changed on disk") ("conflict" . t)))
-               (t `(( "toast" . "No file"))))))
-         `(("ok" . t) ("document_version" . ,(document-version)))))
+         (let ((toast (when *current-buffer*
+                           (let ((res (buffer-save *current-buffer*)))
+                             (cond
+                               ((eq res :saved) "Saved")
+                               ((eq res :conflict) "Conflict — file changed on disk")
+                               (t "No file"))))))
+            (if toast
+                `(("ok" . t) ("toast" . ,toast) ("document_version" . ,(document-version)))
+                `(("ok" . t) ("document_version" . ,(document-version)))))))
       ((and action (string= action "switch-buffer"))
-       (let ((id (cdr (assoc "value" body-json :test #'string=))))
+       (let ((id (cdr (assoc "value" values-alist :test #'string=))))
          (when id (switch-to-buffer id))
          `(("ok" . t) ("document_version" . ,(document-version)))))
       ((and action (string= action "close-buffer"))
-       (let ((id (cdr (assoc "value" body-json :test #'string=))))
+       (let ((id (cdr (assoc "value" values-alist :test #'string=))))
          (when id (kill-buffer id))
          `(("ok" . t) ("document_version" . ,(document-version)))))
       ((and action (string= action "filter-buffers"))
@@ -418,7 +628,7 @@ still validate. Reachable book: override-or-default, strictly."
        ;; A clicked candidate: select it by id, then accept. Mouse gestures
        ;; are never recorded — the invocation carries the values.
        (when *minibuffer-active*
-         (let ((cand (cdr (assoc "value" body-json :test #'string=))))
+         (let ((cand (cdr (assoc "value" values-alist :test #'string=))))
            (let ((pos (position cand *minibuffer-candidates* :test #'string=)))
              (when pos (setf *minibuffer-selected* pos)))
            (when cand
@@ -458,7 +668,7 @@ still validate. Reachable book: override-or-default, strictly."
        ;; Node-driven headline nav: the Outline rows carry the heading's
        ;; 1-based line as their id; the nav MOVES BUFFER POINT (the
        ;; buffer is the truth; pure motion never bumps the version).
-       (let* ((value (cdr (assoc "value" body-json :test #'string=)))
+       (let* ((value (cdr (assoc "value" values-alist :test #'string=)))
               (n (and value (stringp value)
                       (>= (length value) 5)
                       (string= value "line-" :end1 5 :end2 5)

@@ -14,6 +14,7 @@
 (load "tests/surface-tests.lisp")
 (load "tests/sidebar-tests.lisp")
 (load "tests/schema-tests.lisp")
+(load "tests/ingress-tests.lisp")
 
 (sb-ext:quit :unix-status (if (and (ymacs::run-command-tests)
                                    (ymacs::run-keyboard-tests)
@@ -22,5 +23,6 @@
                                    (ymacs::run-settings-tests)
                                    (ymacs::run-surface-tests)
                                    (ymacs::run-sidebar-tests)
-                                   (ymacs::run-schema-tests))
+                                   (ymacs::run-schema-tests)
+                                   (ymacs::run-ingress-tests))
                               0 1))

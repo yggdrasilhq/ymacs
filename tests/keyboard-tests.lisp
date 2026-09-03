@@ -193,9 +193,11 @@ world")))
       (setf *current-buffer* buf *test-counter* 0)
       (reset-key-sequence)
       (ymacs-handle-key "M-x")
+      ;; GUI shape: the candidate rides values.value (nested) — the
+      ;; flat-parser era read a top-level value that never exists.
       (let ((reply (handle-action
                     `(("action" . "minibuffer-select")
-                      ("value" . "test-noargs")))))
+                      ("values" . (("value" . "test-noargs")))))))
         (assert-eq* t (cdr (assoc "ok" reply :test #'string=)))
         (assert-eq* nil *minibuffer-active*)
         (assert-eq* 1 *test-counter*))))

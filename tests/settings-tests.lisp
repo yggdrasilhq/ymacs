@@ -221,7 +221,7 @@ no trailing newline"))
 
   (st-test "section switching renders the other section"
     (settings-open)
-    (settings-handle-action "settings-section" '(("value" . "Files")) nil)
+    (settings-handle-action "settings-section" nil '(("value" . "Files")))
     (st-assert "ymacs — Settings: Files"
                (cdr (assoc "title" (document-schema) :test #'string=)))
     (settings-close))
