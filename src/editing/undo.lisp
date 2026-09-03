@@ -21,16 +21,22 @@
 (defvar *redo-stacks* (make-hash-table :test 'equal))
 
 (defun push-undo (buf)
-  (let ((stack (ensure-undo-stack buf)))
-    (push (make-undo-entry :rope (buffer-rope buf)
-                           :point (buffer-point buf)
-                           :mark (buffer-mark buf)
-                           :timestamp (get-universal-time))
-          stack)
+  ;; The entry is CONSed onto the stored list and written back explicitly.
+  ;; The old body pushed onto a LOCAL copy of the stack and only wrote it
+  ;; back past the limit — so under the limit every push evaporated and
+  ;; buffer-undo never had anything to pop (undo was dead since this file
+  ;; landed; pixel verification caught it 2026-09-04).
+  (let* ((key (buffer-id buf))
+         (stack (cons (make-undo-entry :rope (buffer-rope buf)
+                                       :point (buffer-point buf)
+                                       :mark (buffer-mark buf)
+                                       :timestamp (get-universal-time))
+                      (gethash key *undo-stacks*))))
     (when (> (length stack) *undo-limit*)
-      (setf (gethash (buffer-id buf) *undo-stacks*) (subseq stack 0 *undo-limit*)))
+      (setf stack (subseq stack 0 *undo-limit*)))
+    (setf (gethash key *undo-stacks*) stack)
     ;; Clear redo on new edit
-    (setf (gethash (buffer-id buf) *redo-stacks*) nil)))
+    (setf (gethash key *redo-stacks*) nil)))
 
 (defun buffer-undo (buf)
   (let ((stack (gethash (buffer-id buf) *undo-stacks*)))
