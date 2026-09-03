@@ -8,3 +8,4 @@ target/
 *.log
 node_modules/
 ymacs-bin
+.store-child-output.log

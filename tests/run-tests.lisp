@@ -36,14 +36,24 @@
   ;; The store suite runs in its own image (see tests/store-runner.lisp):
   ;; the sqlite FFI must not poison, or be poisoned by, the big combined
   ;; suite process. Propagate the child's exit status.
-  (let* ((proc (ignore-errors
+  (let* ((out-path "tests/.store-child-output.log")
+         (proc (ignore-errors
                  (sb-ext:run-program "sbcl"
                                      (list "--noinform" "--disable-debugger"
                                            "--no-sysinit" "--no-userinit"
                                            "--load" "tests/store-runner.lisp")
-                                     :search t :wait t)))
+                                     :search t :wait t
+                                     :output out-path :error :output)))
          (store-ok (and proc (= (sb-ext:process-exit-code proc) 0))))
     (format t "ymacs durable-store suite: ~a~%"
             (if store-ok "ok" "FAILED"))
+    (unless store-ok
+      (format t "--- store child output (exit ~a) ---~%"
+              (and proc (sb-ext:process-exit-code proc)))
+      (ignore-errors
+        (with-open-file (s out-path)
+          (loop for line = (read-line s nil nil)
+                while line do (write-line line))))
+      (force-output))
     (force-output)
     (sb-ext:quit :unix-status (if (and every-lisp-suite store-ok) 0 1))))
