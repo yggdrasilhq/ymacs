@@ -1,0 +1,25 @@
+{
+  "generated": "2026-09-04 00:45",
+  "packages_total": 12,
+  "files": 75,
+  "files_read": 66,
+  "files_provided": 1,
+  "forms": 1944,
+  "forms_evaluated": 797,
+  "unmet_features": [["consult", 8], ["use-package-core", 3], ["kmacro", 2], ["cl-lib", 2], ["xref", 1], ["org", 1], ["info", 1], ["imenu", 1], ["flymake", 1], ["compile", 1], ["use-package-ensure", 1], ["use-package-delight", 1], ["use-package-diminish", 1], ["use-package-bind-key", 1], ["dash", 1], ["subr-x", 1]],
+  "top_missing": [["COMPAT-DEFUN", 162], ["CL-DEFMETHOD", 62], ["DEFFACE", 60], ["CL-DEFGENERIC", 37], ["DEFVAR-LOCAL", 35], ["EVAL-WHEN-COMPILE", 33], ["DECLARE-FUNCTION", 26], ["COMPAT-DEFMACRO", 19], ["DEFINE-MINOR-MODE", 17], ["COMPAT-DEFVAR", 17], ["DEFALIAS", 14], ["DEFVAR-KEYMAP", 13], ["COMPAT-DEFALIAS", 12], ["DEFINE-PACKAGE", 12], ["DEFGROUP", 9], ["feature:consult", 8], ["DEFCONST", 7], ["COMPAT-VERSION", 7], ["DEFSUBST", 6], ["COMPAT-GUARD", 6], ["AUTOLOAD", 5], ["COMPAT-REQUIRE", 5], ["MAPCONCAT", 4], ["PUT", 4], ["WHEN-LET*", 4]],
+  "packages": [
+    {"name": "seq", "files": 4, "depth2": 0, "forms": 61, "forms_evaluated": 49},
+    {"name": "compat", "files": 9, "depth2": 0, "forms": 322, "forms_evaluated": 23},
+    {"name": "map", "files": 2, "depth2": 0, "forms": 77, "forms_evaluated": 14},
+    {"name": "dash", "files": 4, "depth2": 0, "forms": 121, "forms_evaluated": 1},
+    {"name": "use-package", "files": 10, "depth2": 0, "forms": 132, "forms_evaluated": 7},
+    {"name": "cape", "files": 4, "depth2": 1, "forms": 135, "forms_evaluated": 105},
+    {"name": "corfu", "files": 10, "depth2": 0, "forms": 246, "forms_evaluated": 178},
+    {"name": "consult", "files": 10, "depth2": 0, "forms": 313, "forms_evaluated": 69},
+    {"name": "marginalia", "files": 2, "depth2": 0, "forms": 150, "forms_evaluated": 88},
+    {"name": "orderless", "files": 3, "depth2": 0, "forms": 73, "forms_evaluated": 54},
+    {"name": "tempel", "files": 2, "depth2": 0, "forms": 73, "forms_evaluated": 61},
+    {"name": "vertico", "files": 15, "depth2": 0, "forms": 241, "forms_evaluated": 148}
+  ]
+}

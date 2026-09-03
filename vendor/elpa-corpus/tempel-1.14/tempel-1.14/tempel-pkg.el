@@ -1,0 +1,2 @@
+;; Generated package description from tempel.el  -*- mode: lisp-data; no-byte-compile: t; lexical-binding:t -*-
+(define-package "tempel" "1.14" "Tempo templates/snippets with in-buffer field editing" '((emacs "29.1") (compat "31")) :commit "c5fdc3806b486d9d86a54c50efac3d4a141e789d" :authors '(("Daniel Mendler" . "mail@daniel-mendler.de")) :maintainer '("Daniel Mendler" . "mail@daniel-mendler.de") :keywords '("abbrev" "languages" "tools" "text") :url "https://github.com/minad/tempel")

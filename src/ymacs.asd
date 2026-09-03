@@ -26,7 +26,9 @@
                (:module "probes"
                 :components ((:file "ytrace")))
                (:module "elpa"
-                :components ((:file "compat")
+                :components ((:file "elisp-reader")
+                             (:file "compat")
+                             (:file "corpus")
                              (:file "use-package")
                              (:file "which-key")
                              (:file "modern-helpers")

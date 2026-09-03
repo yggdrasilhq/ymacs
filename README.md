@@ -1,7 +1,7 @@
 # ymacs
 
 > **A GNU Emacs fork on libyggterm written in Common Lisp.**
-> Modern defaults. ~90% ELPA & MELPA plug-and-play compatibility. Uncompromising speed, concurrency, and deep observability.
+> Modern defaults. ELPA & MELPA compatibility measured honestly on a pinned GNU ELPA corpus. Uncompromising speed, concurrency, and deep observability.
 
 [![CI](https://github.com/yggdrasilhq/ymacs/actions/workflows/ci.yml/badge.svg)](https://github.com/yggdrasilhq/ymacs/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -14,7 +14,7 @@
 `ymacs` reimagines the timeless power of Emacs on a modern, ultra-fast substrate:
 - **Common Lisp Core:** Compiled performance, true native multithreading, and interactive meta-programming on a modern Lisp runtime.
 - **libyggterm Integration:** Runs seamlessly inside `yggterm` desktop and remote terminal sessions via OSC 7717, leveraging high-performance visual document surfaces and sidebars.
-- **ELPA & MELPA Compatibility (target ~90%):** Plug-and-play access to the Emacs Lisp package ecosystem is the stated goal, measured against a public corpus — current depth is tracked honestly in [Status](docs/spec-primitives.md).
+- **ELPA & MELPA Compatibility (measured):** Plug-and-play access to the Emacs Lisp package ecosystem is the stated goal. Measured on a pinned GNU ELPA corpus (2026-09-04): 1/75 corpus files load, 797/1944 forms evaluate — numbers, method and gap queue in [docs/elpa-compat-measurement.md](docs/elpa-compat-measurement.md), status ledger in [Status](docs/spec-primitives.md).
 - **Discard the Old:** No 1980s legacy clutter. Clean modern keymaps, instant sub-15ms startup, smart completion out of the box, and sensible defaults.
 - **Deep Observability:** Built-in `ytrace` dynamic probes for measuring redisplay cycles, evaluation latency, and buffer mutations.
 - **Bidirectional yggterm Orchestration:** Control yggterm terminals directly from Lisp forms, and let AI agents interact with live buffers deterministically.

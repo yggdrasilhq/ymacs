@@ -1,0 +1,133 @@
+                        ━━━━━━━━━━━━━━━━━━━━━━━
+                         TEMPEL.EL - CHANGELOG
+                        ━━━━━━━━━━━━━━━━━━━━━━━
+
+
+1 Version 1.14 (2026-07-05)
+═══════════════════════════
+
+  • `tempel--templates': Return templates in order of hooks.
+
+
+2 Version 1.13 (2026-05-19)
+═══════════════════════════
+
+  • Require Compat 31.
+
+
+3 Version 1.12 (2026-03-09)
+═══════════════════════════
+
+  • Bugfixes.
+
+
+4 Version 1.11 (2026-01-25)
+═══════════════════════════
+
+  • Bugfixes.
+
+
+5 Version 1.10 (2026-01-21)
+═══════════════════════════
+
+  • Support arbitrary non-whitespace characters in completion prefix,
+    such that templates can be named, e.g., `<template'.
+  • Support Lisp expressions which evaluate to template elements.
+  • `tempel-next/previous': Make argument optional.
+  • The currently active template state can be obtained from the top of
+    the `tempel--active' stack.
+  • Improve Tempo compatibility.
+
+
+6 Version 1.9 (2025-11-30)
+══════════════════════════
+
+  • `tempel-done', `tempel-abort': Add `ALL' prefix argument to finish
+    or abort all templates. If `ALL' is nil, treat only the template at
+    point.
+  • `tempel-done-on-region', `tempel-done-on-next': New options to
+    customize quitting behavior. If `tempel-done-or-region' is non-nil,
+    quit when entering a region field. If `tempel-done-on-next' is
+    non-nil, quit when pressing `tempel-next' from inside the last
+    field.
+
+
+7 Version 1.8 (2025-11-15)
+══════════════════════════
+
+  • `tempel-trigger-prefix': Remove feature. Use `cape-capf-trigger'
+    from the Cape package instead. See also `corfu-auto-trigger'.
+
+
+8 Version 1.7 (2025-10-13)
+══════════════════════════
+
+  • Require Emacs 29.
+  • `tempel-complete': Insert trigger prefix only if the command
+    `tempel-complete' is invoked manually.
+
+
+9 Version 1.6 (2025-09-08)
+══════════════════════════
+
+  • Templates support the `:doc' and `:ann' keywords for documentation
+    and annotation respectively.
+
+
+10 Version 1.5 (2025-06-20)
+═══════════════════════════
+
+  • `tempel-complete': Improve region handling, depending on if
+    completion is triggered automatically or manually.
+
+
+11 Version 1.4 (2025-03-16)
+═══════════════════════════
+
+  • `tempel-expand': Expand exact matches directly when invoked
+    interactively instead of going via `completion-at-point'. This
+    avoids problems with `completion-styles' settings.
+
+
+12 Version 1.3 (2024-12-22)
+═══════════════════════════
+
+  • Require Emacs 28.1.
+  • Optional named field argument for custom user element hooks.
+  • Support `:when' in `tempel-abbrev-mode' via the abbrev
+    `:enable-function'.
+
+
+13 Version 1.2 (2024-07-24)
+═══════════════════════════
+
+  • Bugfixes.
+  • Bump Compat dependency to Compat 30.
+
+
+14 Version 1.1 (2024-02-16)
+═══════════════════════════
+
+  • Respect `major-mode-remap-alist' on Emacs 29 when looking up
+    templates.
+
+
+15 Version 1.0 (2023-12-01)
+═══════════════════════════
+
+  • Bugfix: Fix `no-self-insert' of `tempel-abbrev-mode'.
+  • Bugfix: Only replace default field if not modifying a region.
+
+
+16 Version 0.8 (2023-07-02)
+═══════════════════════════
+
+  • Ensure that modification hooks are never inhibited during field
+    modification, which is needed for lsp-mode in order to keep the
+    server synchronized.
+
+
+17 Version 0.7 (2023-02-15)
+═══════════════════════════
+
+  • Start of changelog.
