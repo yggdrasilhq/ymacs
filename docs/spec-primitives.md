@@ -281,6 +281,17 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      - Contract-tested: tests/settings-tests.lisp, 12 tests in CI.
      - Still v0 (honest): sections ship with behavior (Editing first);
        Appearance/Keybindings/Modes/Packages/About arrive with theirs.
+   - **Surface-wire defect fixed (2026-09-03):** bare `ymacs` printed
+     "document surface opened" but no surface appeared. Root cause:
+     `base64-encode` fed Lisp char-codes into the 6-bit groups — every
+     declare carries emoji pane icons (1 char, up to 4 UTF-8 bytes), so
+     the base64 decoded to invalid UTF-8 and the GUI's forwarder dropped
+     it silently. Fixed to encode UTF-8 octets; `Content-Length` on the
+     control server and the `--eval` client now counts bytes, not
+     characters (the old count truncated every emoji-bearing schema for
+     any client that honours the header). Contract-tested:
+     `tests/surface-tests.lisp` (6 tests in CI, golden vector pinned
+     against an independent encoder).
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 

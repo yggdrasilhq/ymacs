@@ -224,8 +224,11 @@ arrive RAW in the alist — this is the JSON contract, not an option."
     (t (json-value-encode obj))))
 
 (defun write-response (stream status body)
+  ;; Content-Length counts UTF-8 BYTES on the wire, not characters:
+  ;; document schemas carry emoji labels (💾 ⚙ 🗂 ⌨), 1 char = 4 bytes.
+  ;; (length body) under-counts and truncates every schema fetch.
   (format stream "HTTP/1.1 ~a OK~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
-          status #\Return #\Newline #\Return #\Newline (length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)
+          status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)
   (force-output stream))
 
 (defun document-schema-widgets (base)
