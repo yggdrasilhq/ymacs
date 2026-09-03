@@ -292,6 +292,20 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      any client that honours the header). Contract-tested:
      `tests/surface-tests.lisp` (6 tests in CI, golden vector pinned
      against an independent encoder).
+   - **One rail pane + manual default (2026-09-03):** the declare
+     advertised five rail panes (five sidebar icons); the law says max ONE
+     sidebar, so the declare now carries exactly one (`ymacs`, Xi icon)
+     and the views (buffers / outline / which-key / settings) multiplex
+     behind `GET /pane/ymacs`. Sidebar switches bump the document version
+     so the /ping edge refetches the rail (the action reply's own version
+     field is not a refetch door — a switch without a stamp never lands).
+     Bare-boot daemon opens the shipped manual (`docs/manual.org`,
+     `$YMACS_MANUAL_PATH` override) when the session holds no buffers.
+     Drive-by: bare `(interactive)` never registers, so `M-x settings`
+     did not exist despite the claim — `sidebar` and `settings` now carry
+     empty specs. Still stubs, honestly: org commands keep bare
+     interactive specs (key-dispatched, not yet M-x named); there is no
+     project view (removed from the pane list, never served one).
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 

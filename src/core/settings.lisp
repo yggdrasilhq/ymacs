@@ -484,7 +484,9 @@ generated from the schema."
 (defcommand settings (&optional section)
   "Open the settings system: sections in the sidebar, the selected
 section as the viewport document. Overrides land in user.org."
-  (interactive)
+  ;; Empty spec: bare (interactive) never registers, leaving M-x unable
+  ;; to name this command (found while wiring M-x sidebar).
+  (interactive "")
   (settings-open section))
 
 (defun settings--read-user-org-for-test ()

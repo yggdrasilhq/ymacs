@@ -20,5 +20,10 @@ if [ -f bin/ymacs ]; then
   chmod +x "$HOME/.local/bin/ymacs"
   echo "Installed launcher to $HOME/.local/bin/ymacs"
 fi
+if [ -f docs/manual.org ]; then
+  mkdir -p "$HOME/.local/share/ymacs"
+  cp docs/manual.org "$HOME/.local/share/ymacs/manual.org"
+  echo "Installed manual to $HOME/.local/share/ymacs/manual.org"
+fi
 rm -f "$HOME/.local/bin/ymacs-bin.old" 2>/dev/null || true
 echo "ymacs installed successfully. Try: ymacs --help"

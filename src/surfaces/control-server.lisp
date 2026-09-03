@@ -74,7 +74,12 @@
                            (json-encode-response `(("ok" . t) ("app_name" . "ymacs") ("document_version" . ,(document-version)))))
                           ((and (string= method "GET") (string= path "/pane/doc"))
                            (json-encode-response (document-schema)))
-                          ((and (string= method "GET") (string= path "/pane/buffers"))
+                          ((and (string= method "GET") (string= path "/pane/ymacs"))
+                            ;; The ONE rail pane: views multiplex here.
+                            ;; The per-view routes below stay as debuggable
+                            ;; sub-views of it, never as declared panes.
+                            (json-encode-response (sidebar-pane-schema)))
+                           ((and (string= method "GET") (string= path "/pane/buffers"))
                            (json-encode-response (buffers-schema)))
                           ((and (string= method "GET") (or (string= path "/pane/which-key") (string= path "/pane/whichkey")))
                            (json-encode-response (which-key-schema query)))

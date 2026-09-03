@@ -13,7 +13,12 @@ Traditional Emacs creates visual clutter by splitting the active editing window 
    - At any time, `ymacs` presents at most **one** auxiliary sidebar window (contributed right panel).
    - This preserves focus and viewport real estate.
 
-2. **Panes Hosted in the Sidebar:**
+2. **One contributed pane on the wire:** ymacs declares a single rail
+   pane (`ymacs`, Xi icon); the views below multiplex behind
+   `GET /pane/ymacs` and switch on a document-version edge. The GUI
+   never learns the views. `M-x sidebar` opens the Buffers view.
+
+3. **Panes Hosted in the Sidebar:**
    - **Buffers:** Live, searchable list of active buffers, categorized by mode and project, with dirty status markers and quick-close actions.
    - **Outline:** Dynamic Org mode or markdown tree view for quick heading navigation.
    - **Project:** File tree browser for the current repository workspace.
