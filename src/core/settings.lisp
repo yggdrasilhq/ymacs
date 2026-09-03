@@ -357,8 +357,9 @@ renders the selected section as a settings document."
 (defun settings-handle-action (action body-json values-alist)
   "Handle a settings:* action. Returns (:handled reply) or nil when the
 action is not a settings action — control-server dispatches first,
-settings owns its namespace."
-  (declare (ignore values-alist))
+settings owns its namespace. Row ids ride values.value (nested); the
+flat scanner that used to find top-level value could not see them."
+  (declare (ignore body-json))
   (labels ((reply ()
              `(("ok" . t) ("document_version" . ,(document-version)))))
     (cond
@@ -367,7 +368,7 @@ settings owns its namespace."
        (settings-open)
        (list :handled (reply)))
       ((string= action "settings-section")
-       (let ((value (cdr (assoc "value" body-json :test #'string=))))
+       (let ((value (cdr (assoc "value" values-alist :test #'string=))))
          (when (member value (settings-sections) :test #'string=)
            (setf *settings-section* value)
            (bump-document-version)))

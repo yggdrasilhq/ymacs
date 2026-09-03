@@ -316,6 +316,16 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      parity); identity stays the full path. Contract:
      `tests/schema-tests.lisp` (8 tests); two settings tests updated to
      the strict wire contract.
+   - **Ingress JSON parses whole (2026-09-03):** M-x did nothing and
+     saves silently kept stale text — the flat body scanner could not see
+     nested objects, so every action carrying values failed (`not of type
+     LIST`). `json-parse` (recursive descent, full escapes incl. pairs)
+     owns request bodies; reads are byte-exact (a char-counted read hangs
+     on non-ASCII bodies); all `value` reads moved into values-alist
+     (settings-section included). Save toast reached the reply for the
+     first time (it was computed and discarded). Contract:
+     `tests/ingress-tests.lisp` (8 tests speaking exact GUI POST shapes);
+     keyboard/settings tests moved to the nested shape.
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 
