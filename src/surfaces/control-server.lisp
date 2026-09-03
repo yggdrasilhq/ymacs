@@ -616,6 +616,18 @@ signal."
                         (cdr (assoc "editor" values-alist :test #'string=)))))
     (declare (ignore target-id))
     (cond
+      ;; The GUI tab strip POSTs the schema action ("ribbon-tab") with the
+      ;; tab id as values.value — the document channel's split form — while
+      ;; automation (pixel-test, curl) uses the combined "ribbon-tab:<id>"
+      ;; spelling. The v1 handler only matched the combined form, so every
+      ;; REAL tab click was a silent no-op (found live, 2026-09-04).
+      ((and action (string= action "ribbon-tab"))
+       (let ((tab (or (cdr (assoc "value" values-alist :test #'string=)) "")))
+         (when (plusp (length tab))
+           (tab-bar-select-tab tab)
+           (fire-probe :ymacs-ribbon :event "tab" :tab tab)))
+       `(("ok" . t) ("schema" . ,(document-schema))
+         ("document_version" . ,(document-version))))
       ((and action (>= (length action) 11)
             (string= "ribbon-tab:" action :end2 11))
        (let ((tab (subseq action 11)))
