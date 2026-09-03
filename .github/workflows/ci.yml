@@ -15,8 +15,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y sbcl texinfo
       - name: Build the forked manual (.info)
         run: |
-          makeinfo docs/emacs-manual/ymacs/ymacs.texi -o docs/emacs-manual/ymacs/ymacs.info
-          test -f docs/emacs-manual/ymacs/ymacs.info
+          makeinfo --version
+          cd docs/emacs-manual/ymacs
+          # @include ../emacs/*.texi resolves against the CWD, so build
+          # from inside the manual dir or the includes escape the repo.
+          makeinfo ymacs.texi -o ymacs.info
+          test -f ymacs.info
       - name: Validate License & Manifest
         run: |
           test -f LICENSE
