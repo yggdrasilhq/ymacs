@@ -16,6 +16,7 @@
                              (:file "frames")
                              (:file "session")
                              (:file "window")
+                             (:file "tab-bar")
                              (:file "sidebar")
                              (:file "window-manager")
                              (:file "settings")

@@ -117,23 +117,32 @@
 
 (defun run-toolbar-tests ()
   (setf *test-pass* 0 *test-fail* 0)
-  (format t "ymacs tool-bar tests~%")
+  (format t "ymacs tab-bar (ribbon chrome) tests~%")
 
-  (test "tool-bar-mode is registered and toggles with a version edge"
+  (test "tab-bar-mode is registered and toggles with a version edge"
+    (assert-eq* t (not (null (member "tab-bar-mode" (minibuffer-command-names)
+                                     :test #'string=))))
+    (let ((*tab-bar-mode-on* t))
+      (let ((before (document-version)))
+        (command-execute 'tab-bar-mode)
+        (assert-eq* nil *tab-bar-mode-on*)
+        (assert-eq* t (not (null (string/= before (document-version)))))
+        (command-execute 'tab-bar-mode)
+        (assert-eq* t *tab-bar-mode-on*))))
+
+  (test "tool-bar-mode stays registered as the tab-bar-mode alias"
     (assert-eq* t (not (null (member "tool-bar-mode" (minibuffer-command-names)
                                      :test #'string=))))
-    (let ((*tool-bar-visible* t))
-      (let ((before (document-version)))
-        (command-execute 'tool-bar-mode)
-        (assert-eq* nil *tool-bar-visible*)
-        (assert-eq* t (not (null (string/= before (document-version)))))
-        (command-execute 'tool-bar-mode)
-        (assert-eq* t *tool-bar-visible*))))
+    (let ((*tab-bar-mode-on* t))
+      (command-execute 'tool-bar-mode)
+      (assert-eq* nil *tab-bar-mode-on*)
+      (command-execute 'tool-bar-mode)
+      (assert-eq* t *tab-bar-mode-on*)))
 
   (test "the ribbon is a ribbon-bar (tabs over groups); widgets carry no ribbon"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
-           (*tool-bar-visible* t))
+           (*tab-bar-mode-on* t))
       (let ((buf (make-new-buffer "*tb*" "x")))
         (setf *current-buffer* buf)
         (let* ((schema (document-schema))
@@ -158,11 +167,11 @@
   (test "ribbon-tab action switches the command groups"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
-           (*tool-bar-visible* t)
+           (*tab-bar-mode-on* t)
            (buf (make-new-buffer "*tb4*" "x")))
       (setf *current-buffer* buf)
       (handle-action `(("action" . "ribbon-tab:view")))
-      (assert-eq* "view" *ribbon-tab*)
+      (assert-eq* "view" *tab-bar-active*)
       (let* ((ribbon (cdr (assoc "ribbon" (document-schema) :test #'string=)))
              (bar (aref ribbon 0))
              (groups (cdr (assoc "groups" bar :test #'string=)))
@@ -171,12 +180,12 @@
         (assert-eq* "toggle-sidebar"
                     (cdr (assoc "action" (aref pane-btns 0) :test #'string=))))
       (handle-action `(("action" . "ribbon-tab:home")))
-      (assert-eq* "home" *ribbon-tab*)))
+      (assert-eq* "home" *tab-bar-active*)))
 
   (test "command: actions run through the choke point and echo"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
-           (*tool-bar-visible* t)
+           (*tab-bar-mode-on* t)
            (buf (make-new-buffer "*tb5*" "hello")))
       (setf *current-buffer* buf)
       (let ((reply (handle-action `(("action" . "command:undo")))))
@@ -189,14 +198,14 @@
   (test "tool-bar off means no ribbon (host gives the card full rect)"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
-           (*tool-bar-visible* nil))
+           (*tab-bar-mode-on* nil))
       (make-new-buffer "*tb2*" "x")
       (assert-eq* nil (cdr (assoc "ribbon" (document-schema) :test #'string=)))))
 
   (test "ribbon JSON validates under the strict contract"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
-           (*tool-bar-visible* t))
+           (*tab-bar-mode-on* t))
       (make-new-buffer "*tb3*" "x")
       (let ((json (sch-json `(("title" . "t")
                               ("ribbon" . ,(cdr (assoc "ribbon" (document-schema)

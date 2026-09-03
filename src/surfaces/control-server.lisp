@@ -466,91 +466,48 @@ still validate. Reachable book: override-or-default, strictly."
         (coerce (append (coerce base 'list) mb) 'vector)
         base)))
 
-(defun document-toolbar-buttons (buf)
-  "The tool-bar-mode buttons, shared by every ribbon. Save reads BUF
-(nil when no buffer is current — its primary flag is then false and
-the action toasts No file instead of touching anything)."
-  (vector
-   `(("action" . "save") ("label" . "💾 Save") ("title" . "Save (C-x C-s)")
-     ("primary" . ,(json-bool (and buf (buffer-modified-p buf)))))
-   `(("action" . "settings") ("label" . "⚙ Settings") ("title" . "Settings (M-x settings)"))
-   `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
-   `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))
+(defun tab-bar-schema-tabs ()
+  "The strip's tabs as the wire vector, in display order."
+  (apply #'vector
+         (mapcar (lambda (tab)
+                   `(("id" . ,(getf tab :id)) ("label" . ,(getf tab :name))))
+                 *tab-bar-tabs*)))
 
-(defparameter *ribbon-tab* "home"
-  "The active ribbon tab (Excel shape: tabs switch the command groups).")
-
-(defun ribbon-group (label &rest args)
-  "ARGS is buttons followed by an optional :right marker (the group
-right-aligns — Excel's Comments/Share slot)."
-  (let* ((right (eq (first (last args)) :right))
-         (buttons (if right (butlast args) args)))
-    `(("label" . ,label) ("buttons" . ,(apply #'vector buttons))
-      ("right" . ,(json-bool right)))))
-
-(defun ribbon-button (action label title &optional primary)
-  `(("action" . ,action) ("label" . ,label) ("title" . ,title)
-    ("primary" . ,(json-bool primary))))
-
-(defun ribbon-groups (tab buf)
-  "The command groups per ribbon tab. Every button fires a REAL action —
-named commands through the choke point, or an existing document action.
-No decorative chrome; a button that cannot do its thing yet does not
-ship (honesty law)."
-  (let ((save-primary (and buf (buffer-modified-p buf))))
-    (cond
-      ((string= tab "edit")
-       (vector
-        (ribbon-group "Clipboard"
-                      (ribbon-button "command:kill-region" "✂ Cut" "Cut region (C-w)")
-                      (ribbon-button "command:kill-ring-save" "⧉ Copy" "Copy region (M-w)")
-                      (ribbon-button "command:yank" "📋 Paste" "Paste (C-y)")
-                      (ribbon-button "command:yank-pop" "⇅ Paste Prev" "Yank pop (M-y)"))
-        (ribbon-group "Line"
-                      (ribbon-button "command:kill-line" "✂ Kill Line" "Kill to end of line (C-k)"))
-        (ribbon-group "Search"
-                      (ribbon-button "command:isearch-forward" "🔍 Search" "Search forward (C-s)"))
-        (ribbon-group "" (ribbon-button "command:execute-extended-command" "M-x" "Run a command by name" t) :right)))
-      ((string= tab "view")
-       (vector
-        (ribbon-group "Panes"
-                      (ribbon-button "toggle-sidebar" "🗂 Buffers" "Toggle the Buffers pane (C-c s)")
-                      (ribbon-button "which-key" "⌨ Which-Key" "Which Key"))
-        (ribbon-group "System"
-                      (ribbon-button "settings" "⚙ Settings" "Settings (M-x settings)")
-                      (ribbon-button "command:sidebar/profiles" "◂▸ Profiles" "Switch profile (M-x sidebar/profiles)"))
-        (ribbon-group "" (ribbon-button "kill-daemon" "⏻ Quit" "Save buffers and kill ymacs") :right)))
-      ((string= tab "help")
-       (vector
-        (ribbon-group "Documentation"
-                      (ribbon-button "command:info" "📖 Manual" "The ymacs manual (Info)"))
-        (ribbon-group "" (ribbon-button "about" "ⓘ About" "Version and provenance") :right)))
-      (t
-       (vector
-        (ribbon-group "File"
-                      (ribbon-button "command:find-file" "📂 Open" "Find file (C-x C-f)")
-                      (ribbon-button "save" "💾 Save" "Save buffer (C-x C-s)" save-primary))
-        (ribbon-group "Edit"
-                      (ribbon-button "command:undo" "↶ Undo" "Undo (C-/)")
-                      (ribbon-button "command:isearch-forward" "🔍 Search" "Search forward (C-s)"))
-        (ribbon-group "" (ribbon-button "command:execute-extended-command" "M-x" "Run a command by name" t) :right))))))
+(defun tab-bar-schema-groups (buf)
+  "The ACTIVE tab's groups as the wire vector — what the floating
+panel renders. BUF resolves :buffer-modified primaries."
+  (let ((tab (tab-bar-tab *tab-bar-active*)))
+    (apply #'vector
+           (when tab
+             (mapcar (lambda (group)
+                       `(("label" . ,(getf group :label))
+                         ("buttons" . ,(apply #'vector
+                                              (mapcar (lambda (button)
+                                                        `(("action" . ,(getf button :action))
+                                                          ("label" . ,(getf button :label))
+                                                          ("title" . ,(getf button :title))
+                                                          ("primary" . ,(json-bool (tab-bar-resolve-primary (getf button :primary) buf)))))
+                                                      (getf group :buttons))))
+                         ("right" . ,(json-bool (getf group :right)))))
+                     (getf tab :groups))))))
 
 (defun ribbon-bar-widget (buf)
+  "The ribbon wire widget. Everything it shows comes from the tab-bar
+state (core/tab-bar.lisp) — tabs and the active tab's command groups —
+so Lisp mutations render within one heartbeat. The GUI turns this into
+a PINNED tab strip plus a FLOATING command panel (docs/spec-ribbon.md)."
   `(("kind" . "ribbon-bar") ("id" . "ribbon")
-    ("action" . "ribbon-tab") ("active" . ,*ribbon-tab*)
-    ("tabs" . ,(vector `(("id" . "home") ("label" . "Home"))
-                       `(("id" . "edit") ("label" . "Edit"))
-                       `(("id" . "view") ("label" . "View"))
-                       `(("id" . "help") ("label" . "Help"))))
-    ("groups" . ,(ribbon-groups *ribbon-tab* buf))))
+    ("action" . "ribbon-tab") ("active" . ,*tab-bar-active*)
+    ("tabs" . ,(tab-bar-schema-tabs))
+    ("groups" . ,(tab-bar-schema-groups buf))))
 
 (defun document-ribbon (buf label-text)
-  "The ribbon region for the document schema: an Excel-shape ribbon bar
-(tabs over grouped commands) plus the pending-key label, or NIL when
-tool-bar-mode is off (the host then gives the card the full rect).
-LABEL-TEXT carries the pending key sequence, so the top bar's removal
-costs no which-key signal."
-  (when *tool-bar-visible*
+  "The ribbon region for the document schema: the ribbon-bar (tabs over
+grouped commands) plus the pending-key label, or NIL when tab-bar-mode
+is off (the host then gives the card the full rect). LABEL-TEXT carries
+the pending key sequence, so the top bar's removal costs no which-key
+signal."
+  (when (tab-bar-visible-p)
     (vector
      (ribbon-bar-widget buf)
      `(("kind" . "label") ("text" . ,label-text)))))
@@ -663,8 +620,7 @@ costs no which-key signal."
             (string= "ribbon-tab:" action :end2 11))
        (let ((tab (subseq action 11)))
          (when (plusp (length tab))
-           (setf *ribbon-tab* tab)
-           (bump-document-version)
+           (tab-bar-select-tab tab)
            (fire-probe :ymacs-ribbon :event "tab" :tab tab)))
        `(("ok" . t) ("document_version" . ,(document-version))))
       ((and action (>= (length action) 8)
