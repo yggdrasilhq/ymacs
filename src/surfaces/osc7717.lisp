@@ -95,9 +95,13 @@ opened' over a declare nothing could parse."
      (let (pairs) (maphash (lambda (k v) (push (cons (princ-to-string k) v) pairs)) obj) (json-string pairs)))
     (t (format nil "\"~a\"" (json-escape-string (princ-to-string obj))))))
 
+;; ONE rail pane, always: the views (buffers / outline / which-key /
+;; settings) multiplex behind GET /pane/ymacs. Five rail icons was five
+;; sidebars wearing a trenchcoat — the one-sidebar law means one icon
+;; (Xi, the Emacs E) whose content ymacs changes as it sees fit.
 (defun emit-declare (session control document-version)
   (let* ((title (if *current-buffer* (buffer-name *current-buffer*) "ymacs"))
-         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"buffers\",\"icon\":\"🗂\",\"title\":\"Buffers\",\"placement\":\"rail\"},{\"id\":\"which-key\",\"icon\":\"⌨\",\"title\":\"Which Key\",\"placement\":\"rail\"},{\"id\":\"outline\",\"icon\":\"≡\",\"title\":\"Outline\",\"placement\":\"rail\"},{\"id\":\"settings\",\"icon\":\"⚙\",\"title\":\"Settings\",\"placement\":\"rail\"}]}"
+         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"ymacs\",\"icon\":\"Ξ\",\"title\":\"Ymacs\",\"placement\":\"rail\"}]}"
                           (json-escape-string session)
                           (json-escape-string control)
                           (json-escape-string document-version)

@@ -129,9 +129,50 @@
           (return url))))
   finally (error "ymacs daemon did not come up within 15s")))
 
+(defvar *ymacs-manual-path-override* nil
+  "Test/diagnostic override for the shipped manual location.")
+
+(defun ymacs-manual-path ()
+  "First existing candidate for the shipped Ymacs manual (docs/manual.org):
+the test override, $YMACS_MANUAL_PATH, the installed share
+(~/.local/share/ymacs/manual.org — install.sh puts it there), the docs/
+sibling of the shipped book the settings schema resolved to, the daemon
+cwd's docs/manual.org. NIL when unreachable — the daemon then falls
+back to *scratch*."
+  (or (and *ymacs-manual-path-override*
+           (probe-file *ymacs-manual-path-override*)
+           *ymacs-manual-path-override*)
+      (let ((env (sb-ext:posix-getenv "YMACS_MANUAL_PATH")))
+        (and env (plusp (length env)) (probe-file env) env))
+      (let ((share (merge-pathnames ".local/share/ymacs/manual.org"
+                                    (pathname (concatenate 'string (ymacs-home) "/")))))
+        (and (probe-file share) share))
+      (let ((book (ignore-errors (settings-schema-path))))
+        (when (and book (string-equal (or (pathname-type book) "") "org"))
+          (let* ((dir (pathname-directory (pathname book)))
+                 (sib (make-pathname :directory (append (butlast dir)
+                                                       (last dir)
+                                                       '(:relative "docs"))
+                                     :name "manual" :type "org")))
+            (and (probe-file sib) sib))))
+      (let ((cwd (merge-pathnames "docs/manual.org" (truename "."))))
+        (and (probe-file cwd) cwd))))
+
+(defun ensure-default-buffer ()
+  "Bare-boot current buffer: the shipped manual when no buffer exists.
+A restored session keeps its buffers — this never hijacks one."
+  (when (null (list-all-buffers))
+    (let ((manual (ignore-errors (ymacs-manual-path))))
+      (if manual
+          (ignore-errors (open-file-buffer manual))
+          (make-new-buffer "*scratch*"
+                           ";; ymacs — M-x opens the command palette.\n"))))
+  *current-buffer*)
+
 (defun run-daemon ()
   "Durable half: store + control endpoint, forever."
   (restore-session)
+  (ensure-default-buffer)
   (let ((url (start-control-server)))
     (format t "~&[ymacs daemon] Control at ~a (~a)~%" url (sb-ext:posix-getenv "HOME"))
     ;; SBCL invokes signal handlers with (signal code context) — 3 args.
