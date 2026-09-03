@@ -527,9 +527,14 @@ signal."
                   (pending (key-sequence-string)))
               `(("title" . ,(format nil "ymacs — ~a~a" name mod))
                 ("key_capture" . t)
-                ("ribbon" . ,(document-ribbon
-                               buf
-                               (format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending))))
+                ;; Empty VECTOR, never NIL: the GUI's serde default covers a
+                ;; MISSING ribbon but rejects null, and a null here silently
+                ;; killed every tab-bar-mode-off schema refetch (found live
+                ;; 2026-09-04 — the strip stayed mounted for 12s+).
+                ("ribbon" . ,(or (document-ribbon
+                                   buf
+                                   (format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending)))
+                                 (vector)))
                 ("widgets" . ,(document-schema-widgets
                                (vector
                                 `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
@@ -539,7 +544,8 @@ signal."
                                   ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers")))))))
             `(("title" . "ymacs")
               ("key_capture" . t)
-              ("ribbon" . ,(document-ribbon nil "ymacs — GNU Emacs on libyggterm"))
+              ("ribbon" . ,(or (document-ribbon nil "ymacs — GNU Emacs on libyggterm")
+                               (vector)))
               ("widgets" . ,(document-schema-widgets
                              (vector
                               `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
