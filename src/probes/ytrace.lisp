@@ -58,6 +58,26 @@
 (register-probe :ymacs-redisplay-frame :description "Redisplay cycle" :fields '(frame-id widget-count render-latency-us))
 (register-probe :ymacs-sidebar-toggle :description "Sidebar spawn/despawn" :fields '(pane visible))
 (register-probe :ymacs-elpa-load :description "ELPA package load" :fields '(package version latency-ms))
+
+;;; Campaign probes (2026-09-04 observability wave). Law: every fire
+;;; site has a registration — an unregistered fire is a silent no-op,
+;;; and two of these (:ymacs-minibuffer, :ymacs-kill-ring) were firing
+;;; unregistered before this wave.
+
+(defun probe-latency-ms (start)
+  (round (* 1000 (/ (- (get-internal-real-time) start)
+                    internal-time-units-per-second))))
+
+(register-probe :ymacs-command :description "Command executed through the choke point"
+                :fields '(name latency-ms))
+(register-probe :ymacs-key :description "One chord arrived on the key plane" :fields '(chord))
+(register-probe :ymacs-minibuffer :description "Palette lifecycle" :fields '(event prompt))
+(register-probe :ymacs-kill-ring :description "Kill ring operations" :fields '(operation length))
+(register-probe :ymacs-store :description "Durable store FFI operations" :fields '(op latency-ms))
+(register-probe :ymacs-osc :description "OSC 7717 surface wire frames" :fields '(verb action bytes))
+(register-probe :ymacs-ribbon :description "Ribbon tab/button activity" :fields '(event tab))
+(register-probe :ymacs-settings :description "Settings store writes" :fields '(op id))
+(register-probe :ymacs-profiles :description "Profile switches" :fields '(profile))
 (register-probe :ymacs-control-request :description "Control server request" :fields '(method path latency-us))
 (register-probe :ymacs-which-key :description "Which-key popup" :fields '(prefix key-count))
 (register-probe :ymacs-use-package :description "use-package expansion" :fields '(package defer ensure))

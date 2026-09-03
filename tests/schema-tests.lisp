@@ -130,7 +130,7 @@
         (command-execute 'tool-bar-mode)
         (assert-eq* t *tool-bar-visible*))))
 
-  (test "the ribbon carries label + toolbar; widgets carry no toolbar"
+  (test "the ribbon is a ribbon-bar (tabs over groups); widgets carry no ribbon"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
            (*tool-bar-visible* t))
@@ -138,14 +138,53 @@
         (setf *current-buffer* buf)
         (let* ((schema (document-schema))
                (ribbon (cdr (assoc "ribbon" schema :test #'string=)))
-               (widgets (cdr (assoc "widgets" schema :test #'string=))))
+               (widgets (cdr (assoc "widgets" schema :test #'string=)))
+               (bar (aref ribbon 0))
+               (groups (cdr (assoc "groups" bar :test #'string=))))
           (assert-eq* 2 (length (coerce ribbon 'list)))
-          (assert-eq* "label" (cdr (assoc "kind" (aref ribbon 0) :test #'string=)))
-          (assert-eq* "toolbar" (cdr (assoc "kind" (aref ribbon 1) :test #'string=)))
-          (assert-eq* 4 (length (cdr (assoc "buttons" (aref ribbon 1) :test #'string=))))
-          (assert-eq* nil (find "toolbar" (coerce widgets 'list)
+          (assert-eq* "ribbon-bar" (cdr (assoc "kind" bar :test #'string=)))
+          (assert-eq* "home" (cdr (assoc "active" bar :test #'string=)))
+          (assert-eq* 4 (length (coerce (cdr (assoc "tabs" bar :test #'string=)) 'list)))
+          (assert-eq* 3 (length (coerce groups 'list)))
+          (assert-eq* t (cdr (assoc "right" (aref groups 2) :test #'string=)))
+          ;; every button fires an action
+          (dolist (g (coerce groups 'list))
+            (dolist (b (coerce (cdr (assoc "buttons" g :test #'string=)) 'list))
+              (assert-eq* t (not (null (cdr (assoc "action" b :test #'string=)))))))
+          (assert-eq* nil (find "ribbon-bar" (coerce widgets 'list)
                                 :key (lambda (w) (cdr (assoc "kind" w :test #'string=)))
                                 :test #'string=))))))
+
+  (test "ribbon-tab action switches the command groups"
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*tool-bar-visible* t)
+           (buf (make-new-buffer "*tb4*" "x")))
+      (setf *current-buffer* buf)
+      (handle-action `(("action" . "ribbon-tab:view")))
+      (assert-eq* "view" *ribbon-tab*)
+      (let* ((ribbon (cdr (assoc "ribbon" (document-schema) :test #'string=)))
+             (bar (aref ribbon 0))
+             (groups (cdr (assoc "groups" bar :test #'string=)))
+             (pane-btns (cdr (assoc "buttons" (aref groups 0) :test #'string=))))
+        (assert-eq* "view" (cdr (assoc "active" bar :test #'string=)))
+        (assert-eq* "toggle-sidebar"
+                    (cdr (assoc "action" (aref pane-btns 0) :test #'string=))))
+      (handle-action `(("action" . "ribbon-tab:home")))
+      (assert-eq* "home" *ribbon-tab*)))
+
+  (test "command: actions run through the choke point and echo"
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*tool-bar-visible* t)
+           (buf (make-new-buffer "*tb5*" "hello")))
+      (setf *current-buffer* buf)
+      (let ((reply (handle-action `(("action" . "command:undo")))))
+        (assert-eq* t (cdr (assoc "ok" reply :test #'string=))))
+      ;; a prompting command opens the palette instead of failing
+      (handle-action `(("action" . "command:find-file")))
+      (assert-eq* t *minibuffer-active*)
+      (minibuffer-abort)))
 
   (test "tool-bar off means no ribbon (host gives the card full rect)"
     (let* ((*buffers* (make-hash-table :test 'equal))

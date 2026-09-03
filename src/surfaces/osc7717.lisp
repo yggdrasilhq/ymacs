@@ -66,6 +66,7 @@ opened' over a declare nothing could parse."
 
 (defun emit-osc-7717 (verb action payload-json)
   (let ((encoded (base64-encode payload-json)))
+    (fire-probe :ymacs-osc :verb verb :action action :bytes (+ 12 (length encoded)))
     (format t "~c]7717;~a;~a;~a~c" (code-char 27) verb action encoded (code-char 7))
     (force-output)))
 

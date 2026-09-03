@@ -53,7 +53,7 @@
 
 (defun session-kill-all ()
   (dolist (buf (list-all-buffers))
-    (kill-buffer (buffer-id buf)))
+    (kill-buffer-by-id (buffer-id buf)))
   (session-clear))
 
 (defun session-info ()

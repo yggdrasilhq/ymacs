@@ -43,6 +43,7 @@ jobs:
           test -f src/elpa/elisp-reader.lisp
           test -f src/elpa/corpus.lisp
           test -f tests/elpa-corpus-tests.lisp
+          test -f tests/ribbon-tests.lisp
           test -f vendor/elpa-corpus/README.md
           test -f src/elpa/which-key.lisp
           echo "Structural checks passed."

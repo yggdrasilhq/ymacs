@@ -121,6 +121,14 @@ form at the head of BODY — both stripped from the function body."
 
 ;;; --- The choke point ------------------------------------------------------
 
+(defparameter *echo-message* nil
+  "The echo area: the last command's report. Action replies carry it as
+a toast; the modeline may render it.")
+
+(defun message (fmt &rest args)
+  "Report to the echo area (Emacs `message`)."
+  (setf *echo-message* (apply #'format nil fmt args)))
+
 (defun command-name (command)
   (cond
     ((symbolp command) command)
@@ -192,6 +200,16 @@ caller must supply — the palette, or the stored values of a macro)."
     (nreverse out)))
 
 (defun command-execute (command &key args (record t))
+  ;; Probe + echo wrapper: the original body is command-execute%raw.
+  ;; Echo clears at entry so a command's message survives until the NEXT
+  ;; command runs (Emacs echo-area semantics), never clobbered after.
+  (setf *echo-message* nil)
+  (let ((start (get-internal-real-time)))
+    (multiple-value-prog1 (command-execute%raw command :args args :record record)
+      (fire-probe :ymacs-command :name (prin1-to-string command)
+                  :latency-ms (probe-latency-ms start)))))
+
+(defun command-execute%raw (command &key args (record t))
   "Execute COMMAND (symbol or function) through the single choke point.
 ARGS, when supplied, are the interactive parameter values (palette, key
 dispatch, or stored macro). RECORD nil suppresses macro recording — used
@@ -230,7 +248,6 @@ the command through the choke point."
 (declare-interactive 'open-file-buffer "fFind file: ")
 (declare-interactive 'switch-to-buffer "bBuffer name: ")
 (declare-interactive 'save-buffer "")
-(declare-interactive 'kill-buffer-command "bBuffer name: ")
 (declare-interactive 'isearch-forward "")
 (declare-interactive 'isearch-backward "")
 (declare-interactive 'undo "")

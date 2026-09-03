@@ -190,6 +190,7 @@ length moved — hand edits are a first-class way to change settings."
 (defun settings-get (id)
   "The typed current value of setting ID: user.org override beats the
 schema default. Unknown ids return NIL — the schema is the authority."
+  (fire-probe :ymacs-settings :op "set" :id id)
   (let ((entry (settings-entry id)))
     (when entry
       (let* ((type (second entry))

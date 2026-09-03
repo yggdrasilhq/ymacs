@@ -8,7 +8,7 @@
 (defvar *isearch-case-fold* t)
 (defvar *isearch-overlays* nil)
 
-(defun isearch-forward (buf str &key (from (buffer-point buf)) regexp case-fold)
+(defun search-buffer-forward (buf str &key (from (buffer-point buf)) regexp case-fold)
   (let* ((content (buffer-content buf))
          (search-str (if case-fold (string-downcase str) str))
          (haystack (if case-fold (string-downcase content) content))
@@ -21,7 +21,7 @@
       (bump-document-version)
       pos)))
 
-(defun isearch-backward (buf str &key (from (buffer-point buf)) regexp case-fold)
+(defun search-buffer-backward (buf str &key (from (buffer-point buf)) regexp case-fold)
   (let* ((content (buffer-content buf))
          (search-str (if case-fold (string-downcase str) str))
          (haystack (if case-fold (string-downcase content) content))
