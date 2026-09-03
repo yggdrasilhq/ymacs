@@ -358,5 +358,5 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
   contract is §1.1).
 - Multi-host frame placement mechanics (needs a yggterm-side spec; only the
   frame=row law is fixed here).
-- IP/licence questions beyond the MPL note in §1.1 (fingraph owns those;
-  ymacs register rows already exist in the IP register).
+- IP/licence questions beyond the MPL note in §1.1 (the IP register
+  owns those; ymacs register rows already exist there).

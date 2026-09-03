@@ -11,8 +11,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install SBCL
-        run: sudo apt-get update && sudo apt-get install -y sbcl
+      - name: Install SBCL + texinfo
+        run: sudo apt-get update && sudo apt-get install -y sbcl texinfo
+      - name: Build the forked manual (.info)
+        run: |
+          makeinfo docs/emacs-manual/ymacs/ymacs.texi -o docs/emacs-manual/ymacs/ymacs.info
+          test -f docs/emacs-manual/ymacs/ymacs.info
       - name: Validate License & Manifest
         run: |
           test -f LICENSE

@@ -18,7 +18,7 @@ daemon restarts.")
 (defvar *sidebar-pane-id* "ymacs"
   "The ONE rail pane id ymacs declares. Views multiplex behind it.")
 
-(defvar *available-panes* '("buffers" "outline" "which-key" "settings")
+(defvar *available-panes* '("buffers" "outline" "which-key" "settings" "profiles")
   "Views the single pane can serve. There is no project view: a name
 without a schema is a stub, and stubs do not ship.")
 (defvar *sidebar-epoch* 0)
@@ -102,4 +102,5 @@ rail never 404s."
           ((string= view "which-key") (which-key-schema nil))
           ((string= view "outline") (outline-schema))
           ((string= view "settings") (settings-pane-schema))
+          ((string= view "profiles") (profiles-schema))
           (t (buffers-schema))))))

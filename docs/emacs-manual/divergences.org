@@ -73,3 +73,43 @@ cost.
   problems; UI-gesture recording would couple macros to widget state.
 - Compat cost: =insert-kbd-macro= emits the ymacs command-layer form
   (readable, portable to ymacs only) instead of raw key vectors.
+
+* D6 — Durable buffers: every buffer is a file or a store row
+  [adopted 2026-09-03 → spec-primitives §1.4]
+
+- Emacs node: (emacs) Save Commands / Auto Save
+- What: unnamed buffers are durably persisted to the profile store at
+  creation and at every command — the scratch buffer survives kill -9.
+  Auto-save loses its raison d'être: file-buffer drafts move into the
+  store's drafts table.
+- Why: no work ever lost is a product invariant, not a recovery mode.
+- Compat cost: code assuming =*scratch*= content vanishes on restart
+  breaks (it doesn't vanish); =auto-save-mode= hooks are no-ops.
+
+* D7 — Profiles and the perpetual session [adopted 2026-09-03]
+
+- Emacs node: (emacs) Exiting / Emacs Server
+- What: Chrome-style profiles (=M-x sidebar/profiles=) — the open
+  buffer set per profile, switchable without stopping the daemon. The
+  daemon is perpetual: only =M-x save-buffers-kill-ymacs= ends it.
+  =save-buffers-kill-emacs=-equivalent semantics, never triggered by a
+  GUI restart or disconnect.
+- Why: the multiplexer owns persistence; work loss by accident is the
+  failure mode ymacs exists to remove.
+- Compat cost: =kill-emacs= hooks run only on the explicit command;
+  code expecting daemon exit on last-frame-close breaks.
+
+* D8 — Info mode is a ymacs-native reader [adopted 2026-09-03, v0]
+
+- Emacs node: (emacs) Info
+- What: the forked manual ships as texinfo and is read in-editor by an
+  Info-mode reader implementing the Emacs keyset (n/p/u/RET/l/q/s);
+  the manual fork lives in docs/emacs-manual/ymacs/ (GFDL, ours) and
+  upstream additions merge over time.
+- Why: the manual must be readable where you work; the interface must
+  match Emacs for portability of habit, diverging only toward
+  modernism (recorded here per entry).
+- Compat cost: v0 is a node navigator, not the full Emacs Info browser
+  (indices, cross-ref completion and =Info-goto-node= completion are
+  open work); Info files for the vendored corpus are readable by the
+  external =info= reader meanwhile.

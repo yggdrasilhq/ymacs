@@ -1,7 +1,7 @@
 ;;;; package.lisp --- Package definitions for ymacs
 
 (defpackage #:ymacs
-  (:use #:cl)
+  (:use #:cl #:sqlite)
   (:export #:start
            #:stop
            #:main
