@@ -147,7 +147,7 @@ The base @file{~/.yggterm/ymacs/} directory caches packages and holds
 the essentials that are machine-wide. Each profile directory holds
 that profile's own overrides; @file{profiles/@var{name}/init.lisp} is
 evaluated after the shipped @file{init.lisp} defaults, in the same
-layering spirit as @file{user.org} for settings (@pxref{Init File}).
+layering spirit as @file{user.org} for settings (@pxref{The Store}).
 An init file that does not exist simply contributes nothing.
 
 @node Info Mode
