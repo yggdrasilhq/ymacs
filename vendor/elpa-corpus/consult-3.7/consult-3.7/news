@@ -1,0 +1,138 @@
+                        ━━━━━━━━━━━━━━━━━━━━━━━━
+                         CONSULT.EL - CHANGELOG
+                        ━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+1 Version 3.7 (2026-08-05)
+══════════════════════════
+
+  • `minibuffer-exit-hook': Internal refactoring of minibuffer-local
+    hooks.
+  • Use `completion-list-candidate-at-point' from Compat 31.
+
+
+2 Version 3.6 (2026-06-05)
+══════════════════════════
+
+  • `consult--command-splitter': Require at least a single character
+    behind the dash to recognize an option.
+  • `consult-find': Support `-name', `-iname', `-regex' and `-iregex'
+    options.
+
+
+3 Version 3.5 (2026-05-19)
+══════════════════════════
+
+  • `consult-bookmark': Add support for shell bookmarks.
+  • Fix bug in command line splitter for asynchronous commands.
+  • Require Compat 31.
+
+
+4 Version 3.4 (2026-03-09)
+══════════════════════════
+
+  • Bugfixes.
+  • Improve default completion UI support on Emacs 31.
+  • Remove `consult-separator' face.
+  • Remove obsolete `consult-preview-at-point-mode' and
+    `consult-preview-at-point'.
+
+
+5 Version 3.3 (2026-01-18)
+══════════════════════════
+
+  • *BREAKING CHANGE*: The syntax to pass options to `consult-ripgrep',
+    `consult-fd' etc. has changed. The overall syntax should be familiar
+    since it resembles the usual shell syntax. The input after a dash is
+    treated as options. In order to search for a token starting with a
+    dash, escape the dash with a backslash.  Input after two standalone
+    dashes is treated as search pattern. Examples:
+    • `#word -C2' or `#-C2 -- word': Grep for `word' with a context of
+      two lines.
+    • `#\-C' or `#-- -C': Grep for `-C'.
+    • `#--newer 1h': Find files which are newer than 1h with
+      `consult-fd'.
+  • New face `consult-async-option' which is used to highlight options
+    passed to asynchronous commands.
+  • `consult-fd', `consult-find': Start search if either pattern or
+    options are given.
+  • Remove obsolete `consult--source-*' variables. Use the public
+    variables `consult-source-*' instead.
+
+
+6 Version 3.2 (2026-01-12)
+══════════════════════════
+
+  • Improve default completion UI support on Emacs 31.
+  • Make `consult-preview-at-point-mode' and `consult-preview-at-point'
+    obsolete. The preview functionality in completion buffers is enabled
+    automatically.
+
+
+7 Version 3.1 (2025-11-29)
+══════════════════════════
+
+  • `consult-line', `consult-line-multi', `consult-outline': Use lazy
+    fontification for completion candidates. This greatly reduces the
+    startup cost of the commands.  `consult-line' becomes usable on very
+    large files now, up to files like the SQLite
+    amalgamation. Furthermore `consult-line-multi' candidates are
+    fontified, which was not the case before.
+  • `consult-focus-lines': Do not fontify buffer eagerly to reduce
+    startup cost. The focused lines are fontified lazily when they come
+    into sight.
+  • `consult--read': Stop providing an `annotation-function'. Rely on
+    the `affixation-function' only.
+
+
+8 Version 3.0 (2025-11-15)
+══════════════════════════
+
+  • Make `consult-source-*' variables public. These variables are
+    commonly customized via `consult-customize' and they are referenced
+    by the customizable variable `consult-buffer-sources'. Keep obsolete
+    `consult--source-*' variable aliases.
+
+
+9 Version 2.9 (2025-10-13)
+══════════════════════════
+
+  • Minor fixes.
+  • Require Emacs 29.
+  • `consult-info': Reuse current info buffer when jumping to a search
+    result.
+
+
+10 Version 2.8 (2025-09-08)
+═══════════════════════════
+
+  • New command `consult-grep-match' based on `consult-compile-error',
+    which shows Grep matches of related Grep buffers.
+  • `consult-compile-error': Exclude Grep matches. Show only compilation
+    errors from compilation buffers.
+  • `consult-compile-error': Remove `g' narrow key.
+
+
+11 Version 2.7 (2025-08-05)
+═══════════════════════════
+
+  • `consult-buffer-list-function': New customizable variable to support
+    frame or tab isolation (see `tab-bar-mode'). Set to
+    `consult--frame-buffer-list' for frame isolation. Alternatively use
+    buffer functions provided by packages like [beframe].
+  • `consult--source-other-buffer': Buffer source which lists all
+    buffers which missing from the list returned by
+    `consult-buffer-list-function'. If buffers are restricted to the
+    current frame or tab by default, then this source will list the
+    buffers belonging to other frames or tabs.
+
+
+[beframe] <https://github.com/protesilaos/beframe>
+
+
+12 Version 2.6 (2025-06-28)
+═══════════════════════════
+
+  • `consult--read', `consult--prompt': Accept a `:command' keyword
+    argument which
+  …  …

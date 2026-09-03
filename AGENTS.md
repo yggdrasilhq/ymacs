@@ -1,7 +1,7 @@
 # AGENTS.md — ymacs Engineering Contract
 
 `ymacs` is a GNU Emacs fork built on **libyggterm**, implemented in **Common Lisp**.
-It delivers a modern, ultra-snappy, deeply observable Lisp editing environment with **~90% ELPA and MELPA plug-and-play compatibility**, discard-the-old modern defaults, and first-class agent orchestration.
+It delivers a modern, ultra-snappy, deeply observable Lisp editing environment with **ELPA/MELPA compatibility that is measured, not claimed** (pinned GNU ELPA corpus: 1/75 files load, 41% of forms evaluate — [docs/elpa-compat-measurement.md](docs/elpa-compat-measurement.md)), discard-the-old modern defaults, and first-class agent orchestration.
 
 **Repository licence: GPL-3.0-or-later (code), GFDL-1.3-or-later (documentation).**
 Do not introduce contradicting licence claims anywhere in this repository. All documentation under `docs/` and manual sections follow the GNU Free Documentation License (with no Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts).
@@ -13,9 +13,9 @@ Do not introduce contradicting licence claims anywhere in this repository. All d
 1. **Common Lisp Core on libyggterm:**
    - The engine is implemented in Common Lisp (SBCL / ECL / portable CL core), taking advantage of true native concurrency, fast compiled execution, and dynamic interactive image manipulation.
    - ymacs communicates with yggterm over standard **OSC 7717** byte streams and loopback HTTP control servers (`libyggterm-surfaces/SKILL.md`).
-2. **~90% ELPA & MELPA Plug-and-Play Compatibility:**
-   - Emacs Lisp evaluation layer (`src/elpa/compat.lisp`) provides high-fidelity emulation of Emacs Lisp primitives, macros, and standard library forms (`defcustom`, `use-package`, `add-hook`, buffer manipulation, keymaps).
-   - Standard ELPA and MELPA packages install and evaluate with zero or minimal friction.
+2. **ELPA & MELPA Plug-and-Play Compatibility (measured on a pinned corpus):**
+   - Emacs Lisp evaluation layer (`src/elpa/compat.lisp`) provides emulation of Emacs Lisp primitives, macros, and standard library forms (`defcustom`, `use-package`, `add-hook`, buffer manipulation, keymaps).
+   - Measured depth (step 8, 2026-09-04): **1/75 corpus files load; 797/1944 forms evaluate**. Method, tables and the ranked gap queue: [docs/elpa-compat-measurement.md](docs/elpa-compat-measurement.md). "Standard packages install with zero friction" is the goal, not a claim — the gap queue is the work.
 3. **Modern Defaults by Construction:**
    - Instant startup (<15ms cold start to initial interactive frame).
    - Modern completion, fuzzy matching, smart parens, UTF-8 everywhere, clean modern typography, and sane indentation out of the box.

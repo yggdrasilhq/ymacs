@@ -19,6 +19,7 @@
 (load "tests/sidebar-tests.lisp")
 (load "tests/schema-tests.lisp")
 (load "tests/ingress-tests.lisp")
+(load "tests/elpa-corpus-tests.lisp")
 
 (let ((every-lisp-suite
         (and (ymacs::run-command-tests)
@@ -30,7 +31,8 @@
              (ymacs::run-sidebar-tests)
              (ymacs::run-schema-tests)
              (ymacs::run-toolbar-tests)
-             (ymacs::run-ingress-tests))))
+             (ymacs::run-ingress-tests)
+             (ymacs::run-corpus-tests))))
   ;; The store suite runs in its own image (see tests/store-runner.lisp):
   ;; the sqlite FFI must not poison, or be poisoned by, the big combined
   ;; suite process. Propagate the child's exit status.

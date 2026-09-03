@@ -334,8 +334,19 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      `run-toolbar-tests` (4 tests). Needs yggterm with the ribbon region
      (same date); older GUIs ignore the unknown top-level key and keep
      the editor, minus the moved toolbar.
-  8. ELPA compat depth measured by a public test corpus (replace the
-     "90%" target with numbers).
+  8. ELPA compat depth measured by a public test corpus ✅ done
+     (2026-09-04): the blessed modern helper stack + foundations vendored
+     verbatim from GNU ELPA (`vendor/elpa-corpus/`, pinned by sha256) and
+     measured by `src/elpa/corpus.lisp` + `src/elpa/elisp-reader.lisp`
+     against the shipped compat layer — 12 packages, 75 files: 66 read,
+     797/1944 forms (41%) evaluate, **1 file loads** (cape-keyword.el, a
+     keyword table). The "~90%" figure is retired as what the 2026-09-02
+     audit called it: a target, never a measurement. Numbers, method,
+     read-failure list and the ranked gap queue:
+     [docs/elpa-compat-measurement.md](elpa-compat-measurement.md). The
+     instrument is contract-tested (tests/elpa-corpus-tests.lisp) and
+     scrubs the Elisp package between runs so its own evals cannot
+     contaminate the next measurement.
 
 ## 6. Documentation law — the vendored Emacs manual and divergence markers
 

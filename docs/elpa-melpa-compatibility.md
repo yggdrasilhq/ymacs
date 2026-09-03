@@ -1,9 +1,11 @@
 # ELPA & MELPA Compatibility in ymacs
 
-`ymacs` targets **~90% plug-and-play compatibility** with the Emacs Lisp
-ecosystem — measured as *the modern 90%*, not the full historical archive —
-while retaining Common Lisp's compiled speed, true concurrency, and ytrace
-observability.
+`ymacs` targets plug-and-play compatibility with the Emacs Lisp ecosystem —
+the *modern* stack, not the full historical archive — while retaining Common
+Lisp's compiled speed, true concurrency, and ytrace observability.
+**Measured depth (2026-09-04, pinned GNU ELPA corpus): 1/75 corpus files
+load, 797/1944 forms evaluate — method, tables and the gap queue:
+[elpa-compat-measurement.md](elpa-compat-measurement.md).**
 
 ## 1. How Compatibility Works
 
@@ -77,8 +79,12 @@ thin adapters that reuse the modern primitives.
 
 ## 5. Corpus Definition
 
-v0.1 corpus = all MELPA packages whose `Package-Requires` and `require` graph
-transitively avoids the discarded set and declares via `use-package`. That is
-the modern 90% the owner requested. A CI harness samples the top MELPA
-downloads, attempts `ymacs-use-package` install, and counts `ok` vs
-`discarded` vs `failed`.
+The v0.1 corpus is **vendored and pinned** under `vendor/elpa-corpus/`:
+the blessed modern helper stack itself plus its foundation libraries
+(seq, compat, map, dash, use-package, cape, corfu, consult, marginalia,
+orderless, tempel, vertico — GNU ELPA, 2026-09-03). It is measured by
+`src/elpa/corpus.lisp` on every test run; the numbers live in
+[elpa-compat-measurement.md](elpa-compat-measurement.md) and the raw
+data in `elpa-compat-measurement.json`. Widening to the full MELPA
+top-download sampling described earlier comes after the pinned corpus
+loads — no sampling past the files that fail today.
