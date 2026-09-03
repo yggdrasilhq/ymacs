@@ -11,10 +11,12 @@
 (load "tests/frames-tests.lisp")
 (load "tests/org-tests.lisp")
 (load "tests/settings-tests.lisp")
+(load "tests/surface-tests.lisp")
 
 (sb-ext:quit :unix-status (if (and (ymacs::run-command-tests)
                                    (ymacs::run-keyboard-tests)
                                    (ymacs::run-frames-tests)
                                    (ymacs::run-org-tests)
-                                   (ymacs::run-settings-tests))
+                                   (ymacs::run-settings-tests)
+                                   (ymacs::run-surface-tests))
                               0 1))

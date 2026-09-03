@@ -85,8 +85,10 @@
                (host (first parts)) (port (parse-integer (second parts) :junk-allowed t)))
           (sb-bsd-sockets:socket-connect sock (sb-bsd-sockets:make-inet-address host) port)
           (let ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t :element-type 'character :external-format :utf-8)))
+            ;; Byte length: --eval forms with non-ASCII (emoji strings,
+            ;; unicode paths) are more bytes than characters on the wire.
             (format stream "POST ~a HTTP/1.1~C~CHost: ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
-                    path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (length body-json) #\Return #\Newline #\Return #\Newline #\Return #\Newline body-json)
+                    path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (utf8-byte-length body-json) #\Return #\Newline #\Return #\Newline #\Return #\Newline body-json)
             (force-output stream)
             (let* ((raw (with-output-to-string (out) (loop for ch = (read-char stream nil nil) while ch do (write-char ch out))))
                    (body (second (split-once raw (format nil "~C~C~C~C" #\Return #\Newline #\Return #\Newline)))))
