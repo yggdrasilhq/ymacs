@@ -76,21 +76,6 @@
   (setf (buffer-mark buf) (buffer-point buf))
   t)
 
-(defun find-file (path)
-  (open-file-buffer (pathname path)))
-
-(defun switch-to-buffer (name-or-id)
-  (let ((buf (or (get-buffer-by-id name-or-id)
-                 (find name-or-id (list-all-buffers) :key #'buffer-name :test #'string=))))
-    (when buf (setf *current-buffer* buf) (bump-document-version) t)))
-
-(defun save-buffer (&optional buf)
-  (let ((b (or buf *current-buffer*)))
-    (when b (buffer-save b))))
-
-(defun kill-buffer-command (id)
-  (kill-buffer id))
-
 ;; Chord parsing for display
 (defun chord-display (key)
   (format nil "~a" key))

@@ -33,6 +33,10 @@
   *current-sidebar-pane*)
 
 (defun ymacs-switch-profile (id)
+  (multiple-value-prog1 (ymacs-switch-profile%raw id)
+    (fire-probe :ymacs-profiles :profile id)))
+
+(defun ymacs-switch-profile%raw (id)
   "Switch the live profile: persist this profile's open set, load the
 target's, keep the daemon running. Unnamed durable buffers of the old
 profile stay in the store — nothing is deleted, nothing is lost."

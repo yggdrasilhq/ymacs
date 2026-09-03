@@ -165,11 +165,11 @@ is ever only in memory. No-op until the store is open (unit tests,
 (defun current-buffer ()
   *current-buffer*)
 
-(defun switch-to-buffer (id)
+(defun switch-to-buffer-by-id (id)
   (let ((buf (gethash id *buffers*)))
     (when buf (setf *current-buffer* buf) t)))
 
-(defun kill-buffer (id)
+(defun kill-buffer-by-id (id)
   (let ((buf (gethash id *buffers*)))
     (when buf
       (remhash id *buffers*)
@@ -230,7 +230,7 @@ is ever only in memory. No-op until the store is open (unit tests,
     :saved))
 
 (defun close-buffer (id)
-  (kill-buffer id))
+  (kill-buffer-by-id id))
 
 ;;; Draft persistence (crash safety): each dirty buffer gets a draft file
 ;;; ~/.yggterm/ymacs/drafts/<id>.lisp  (full content, not diff).

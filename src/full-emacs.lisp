@@ -67,10 +67,7 @@
   (let ((cmd (lookup-key key)))
     (if cmd (format nil "~a runs ~a" key cmd) (format nil "~a is undefined" key))))
 
-;; Info, Man
-(defun info (&optional file)
-  (declare (ignore file))
-  (make-new-buffer "*info*" "Info: ymacs manual — see docs/manual.org"))
+;; Info — the real (defcommand info) lives in editing/commands.lisp
 
 ;; Ediff, Compile, Grep
 (defun ediff (file-a file-b)

@@ -130,7 +130,8 @@ with exactly the collected values — the record the macro keeps."
   (let ((sym *minibuffer-command*)
         (values (reverse *minibuffer-acc*)))
     (minibuffer-exit-state)
-    (command-execute sym :args values)))
+    (fire-probe :ymacs-minibuffer :event "accept" :prompt (prin1-to-string sym))
+          (command-execute sym :args values)))
 
 (defun minibuffer-accept ()
   "RET: accept the current selection/input and advance."

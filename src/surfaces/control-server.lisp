@@ -477,16 +477,83 @@ the action toasts No file instead of touching anything)."
    `(("action" . "toggle-sidebar") ("label" . "🗂 Buffers") ("title" . "Toggle Buffers (C-c s)"))
    `(("action" . "which-key") ("label" . "⌨ Which-Key") ("title" . "Which Key"))))
 
+(defparameter *ribbon-tab* "home"
+  "The active ribbon tab (Excel shape: tabs switch the command groups).")
+
+(defun ribbon-group (label &rest args)
+  "ARGS is buttons followed by an optional :right marker (the group
+right-aligns — Excel's Comments/Share slot)."
+  (let* ((right (eq (first (last args)) :right))
+         (buttons (if right (butlast args) args)))
+    `(("label" . ,label) ("buttons" . ,(apply #'vector buttons))
+      ("right" . ,(json-bool right)))))
+
+(defun ribbon-button (action label title &optional primary)
+  `(("action" . ,action) ("label" . ,label) ("title" . ,title)
+    ("primary" . ,(json-bool primary))))
+
+(defun ribbon-groups (tab buf)
+  "The command groups per ribbon tab. Every button fires a REAL action —
+named commands through the choke point, or an existing document action.
+No decorative chrome; a button that cannot do its thing yet does not
+ship (honesty law)."
+  (let ((save-primary (and buf (buffer-modified-p buf))))
+    (cond
+      ((string= tab "edit")
+       (vector
+        (ribbon-group "Clipboard"
+                      (ribbon-button "command:kill-region" "✂ Cut" "Cut region (C-w)")
+                      (ribbon-button "command:kill-ring-save" "⧉ Copy" "Copy region (M-w)")
+                      (ribbon-button "command:yank" "📋 Paste" "Paste (C-y)")
+                      (ribbon-button "command:yank-pop" "⇅ Paste Prev" "Yank pop (M-y)"))
+        (ribbon-group "Line"
+                      (ribbon-button "command:kill-line" "✂ Kill Line" "Kill to end of line (C-k)"))
+        (ribbon-group "Search"
+                      (ribbon-button "command:isearch-forward" "🔍 Search" "Search forward (C-s)"))
+        (ribbon-group "" (ribbon-button "command:execute-extended-command" "M-x" "Run a command by name" t) :right)))
+      ((string= tab "view")
+       (vector
+        (ribbon-group "Panes"
+                      (ribbon-button "toggle-sidebar" "🗂 Buffers" "Toggle the Buffers pane (C-c s)")
+                      (ribbon-button "which-key" "⌨ Which-Key" "Which Key"))
+        (ribbon-group "System"
+                      (ribbon-button "settings" "⚙ Settings" "Settings (M-x settings)")
+                      (ribbon-button "command:sidebar/profiles" "◂▸ Profiles" "Switch profile (M-x sidebar/profiles)"))
+        (ribbon-group "" (ribbon-button "kill-daemon" "⏻ Quit" "Save buffers and kill ymacs") :right)))
+      ((string= tab "help")
+       (vector
+        (ribbon-group "Documentation"
+                      (ribbon-button "command:info" "📖 Manual" "The ymacs manual (Info)"))
+        (ribbon-group "" (ribbon-button "about" "ⓘ About" "Version and provenance") :right)))
+      (t
+       (vector
+        (ribbon-group "File"
+                      (ribbon-button "command:find-file" "📂 Open" "Find file (C-x C-f)")
+                      (ribbon-button "save" "💾 Save" "Save buffer (C-x C-s)" save-primary))
+        (ribbon-group "Edit"
+                      (ribbon-button "command:undo" "↶ Undo" "Undo (C-/)")
+                      (ribbon-button "command:isearch-forward" "🔍 Search" "Search forward (C-s)"))
+        (ribbon-group "" (ribbon-button "command:execute-extended-command" "M-x" "Run a command by name" t) :right))))))
+
+(defun ribbon-bar-widget (buf)
+  `(("kind" . "ribbon-bar") ("id" . "ribbon")
+    ("action" . "ribbon-tab") ("active" . ,*ribbon-tab*)
+    ("tabs" . ,(vector `(("id" . "home") ("label" . "Home"))
+                       `(("id" . "edit") ("label" . "Edit"))
+                       `(("id" . "view") ("label" . "View"))
+                       `(("id" . "help") ("label" . "Help"))))
+    ("groups" . ,(ribbon-groups *ribbon-tab* buf))))
+
 (defun document-ribbon (buf label-text)
-  "The ribbon region for the document schema: buffer label + quick-access
-toolbar, or NIL when tool-bar-mode is off (the host then gives the card
-the full rect). LABEL-TEXT carries the pending key sequence, so the top
-bar's removal costs no which-key signal."
+  "The ribbon region for the document schema: an Excel-shape ribbon bar
+(tabs over grouped commands) plus the pending-key label, or NIL when
+tool-bar-mode is off (the host then gives the card the full rect).
+LABEL-TEXT carries the pending key sequence, so the top bar's removal
+costs no which-key signal."
   (when *tool-bar-visible*
     (vector
-     `(("kind" . "label") ("text" . ,label-text))
-     `(("kind" . "toolbar") ("id" . "tool-bar")
-       ("buttons" . ,(document-toolbar-buttons buf))))))
+     (ribbon-bar-widget buf)
+     `(("kind" . "label") ("text" . ,label-text)))))
 
 (defun document-schema ()
   ;; While settings are open the settings document OWNS the viewport
@@ -592,6 +659,27 @@ bar's removal costs no which-key signal."
                         (cdr (assoc "editor" values-alist :test #'string=)))))
     (declare (ignore target-id))
     (cond
+      ((and action (>= (length action) 11)
+            (string= "ribbon-tab:" action :end2 11))
+       (let ((tab (subseq action 11)))
+         (when (plusp (length tab))
+           (setf *ribbon-tab* tab)
+           (bump-document-version)
+           (fire-probe :ymacs-ribbon :event "tab" :tab tab)))
+       `(("ok" . t) ("document_version" . ,(document-version))))
+      ((and action (>= (length action) 8)
+            (string= "command:" action :end2 8))
+       (command-execute-or-prompt
+        (intern (string-upcase (subseq action 8)) :ymacs))
+       (if *echo-message*
+           `(("ok" . t) ("toast" . ,*echo-message*)
+             ("document_version" . ,(document-version)))
+           `(("ok" . t) ("document_version" . ,(document-version)))))
+      ((and action (string= action "about"))
+       (setf *echo-message*
+             (format nil "ymacs ~a — GNU Emacs on libyggterm (GPL-3)"
+                     *ymacs-version*))
+       `(("ok" . t) ("toast" . ,*echo-message*)))
       ((and action (string= action "save"))
        (let* ((draft (cdr (assoc "editor" values-alist :test #'string=)))
               (key (cdr (assoc "editor" value-keys :test #'string=)))
@@ -615,11 +703,11 @@ bar's removal costs no which-key signal."
                 `(("ok" . t) ("document_version" . ,(document-version)))))))
       ((and action (string= action "switch-buffer"))
        (let ((id (cdr (assoc "value" values-alist :test #'string=))))
-         (when id (switch-to-buffer id))
+         (when id (switch-to-buffer-by-id id))
          `(("ok" . t) ("document_version" . ,(document-version)))))
       ((and action (string= action "close-buffer"))
        (let ((id (cdr (assoc "value" values-alist :test #'string=))))
-         (when id (kill-buffer id))
+         (when id (kill-buffer-by-id id))
          `(("ok" . t) ("document_version" . ,(document-version)))))
       ((and action (string= action "filter-buffers"))
        `(("ok" . t)))

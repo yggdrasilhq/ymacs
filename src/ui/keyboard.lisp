@@ -77,6 +77,34 @@ an unbound symbol refuses quietly: a dead key must never kill the reply."
         nil))
     (error () nil)))
 
+(defun command-execute-or-prompt (sym)
+  "Run the named command. If it wants prompting parameters, open the
+palette exactly as key dispatch does — the shared M-x-law entry for
+callers outside the key loop (ribbon buttons, action verbs). Returns
+the echo message, or NIL when the palette opened."
+  (handler-case
+      (progn (command-execute sym) *echo-message*)
+    (missing-interactive-args (c)
+      (let ((failed (missing-interactive-args-command c)))
+        (when (not *kbd-replaying*)
+          (setf *minibuffer-command* nil
+                *minibuffer-remaining-prompts* nil
+                *minibuffer-acc* nil)
+          (if (eq failed 'execute-extended-command)
+              (minibuffer-start "M-x " (minibuffer-command-names))
+              (minibuffer-start-for-command failed)))
+        nil))
+    (error (e)
+      (message "Error: ~a" e)
+      *echo-message*)))
+
+(defcommand keyboard-quit ()
+  "C-g: abort the palette and any pending key sequence."
+  (interactive)
+  (when *minibuffer-active* (minibuffer-abort))
+  (reset-key-sequence)
+  (message "Quit"))
+
 ;;; --- Point helpers ------------------------------------------------------------
 
 (defun keyboard-line-bounds (content pt)
@@ -210,6 +238,7 @@ C-u always STARTS at 4 and multiplies on repeats."
 (defun ymacs-handle-key (chord)
   "Handle one key event. Returns the action-reply alist: ok + the fresh
 document schema, so one loopback round trip renders the keystroke."
+  (fire-probe :ymacs-key :chord chord)
   (when *minibuffer-active*
     ;; The palette owns the keyboard while a read is in flight: its keys
     ;; mutate palette state and are NEVER recorded (the macro law) — only

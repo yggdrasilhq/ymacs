@@ -43,10 +43,15 @@
          (*buffers* (make-hash-table :test 'equal))
          (*current-buffer* nil))
     (stest "unnamed buffers persist at create and restore by id"
-      (store-open)
+      (let ((*store-path-override* (sb-store-path "persist")))
+        (store-open)
       (let ((buf (make-new-buffer "*persist-me*" "survives anything")))
         (setf *current-buffer* buf)
+        (format t "DBG store=~a override=~a profile=~a~%"
+                (if *store* "open" "nil") *store-path-override* *profile*)
         (assert-eq* t (store-buffer-exists-p (buffer-id buf)))
+        (format t "DBG exists ok; get=~a~%"
+                (multiple-value-list (store-get-buffer (buffer-id buf))))
         (assert-eq* "survives anything" (store-buffer-content (buffer-id buf)))
         (let ((id (buffer-id buf)))
           (store-close)
@@ -58,7 +63,7 @@
                       (buffer-content (gethash id *buffers*)))
           (kill-buffer id)
           (assert-eq* nil (store-buffer-exists-p id))))
-      (store-close)))
+        (store-close))))
 
   ;; 2. profiles isolate open sets; switching never loses work.
   (let* ((*store-path-override* (sb-store-path "profiles"))

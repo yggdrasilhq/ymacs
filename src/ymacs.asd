@@ -39,7 +39,8 @@
                              (:file "search")
                              (:file "macro")
                              (:file "folding")
-                             (:file "multiple-cursors")))
+                             (:file "multiple-cursors")
+                             (:file "commands")))
                (:module "modes"
                 :components ((:file "fundamental")
                              (:file "dired")

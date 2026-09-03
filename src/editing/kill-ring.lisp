@@ -15,14 +15,14 @@
     (setf *kill-ring-yank-pointer* *kill-ring*)
     (fire-probe :ymacs-kill-ring :operation "kill" :length (length text))))
 
-(defun kill-region (buf start end)
+(defun kill-region-in-buffer (buf start end)
   (let* ((s (min start end)) (e (max start end))
          (text (rope-substring (buffer-rope buf) s (- e s))))
     (kill-ring-push text)
     (buffer-delete-with-undo buf s (- e s))
     text))
 
-(defun kill-line (buf)
+(defun kill-line-in-buffer (buf)
   (let* ((content (buffer-content buf))
          (pt (buffer-point buf))
          (eol (or (position #\Newline content :start pt) (length content)))
@@ -31,14 +31,14 @@
     (buffer-delete-with-undo buf pt (length text))
     text))
 
-(defun yank (buf)
+(defun yank-into-buffer (buf)
   (when *kill-ring-yank-pointer*
     (let ((text (first *kill-ring-yank-pointer*)))
       (buffer-insert-with-undo buf (buffer-point buf) text)
       (incf (buffer-point buf) (length text))
       text)))
 
-(defun yank-pop (buf)
+(defun yank-pop-into-buffer (buf)
   (when (and *kill-ring-yank-pointer* (cdr *kill-ring-yank-pointer*))
     (let* ((prev (first *kill-ring-yank-pointer*))
            (next (second *kill-ring-yank-pointer*)))
@@ -48,7 +48,7 @@
       (setf *kill-ring-yank-pointer* (cdr *kill-ring-yank-pointer*))
       next)))
 
-(defun kill-ring-save (text)
+(defun kill-ring-push-copy (text)
   (kill-ring-push text))
 
 (defun kill-ring-clear ()

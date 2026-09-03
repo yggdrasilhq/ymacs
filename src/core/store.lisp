@@ -33,6 +33,7 @@
   (unless *store*
     (ensure-state-dir)
     (require :asdf)
+    (let ((start (get-internal-real-time)))
     (handler-case
         (let ((db (sqlite:connect (namestring (store-path)))))
           ;; WAL uses an mmap'd -shm; through cffi on this stack it
@@ -41,9 +42,10 @@
           (sqlite:execute-non-query db "PRAGMA journal_mode=DELETE")
           (sqlite:execute-non-query db "PRAGMA synchronous=FULL")
           (store-migrate db)
-          (setf *store* db))
+          (setf *store* db)
+          (fire-probe :ymacs-store :op "open" :latency-ms (probe-latency-ms start)))
       (error (e)
-        (error 'store-error :what (format nil "cannot open ~a: ~a" (store-path) e)))))
+        (error 'store-error :what (format nil "cannot open ~a: ~a" (store-path) e))))))
   *store*)
 
 (defun store-close ()
@@ -121,6 +123,11 @@ session (the per-profile open set), drafts (file-buffer crash safety)."
       (not (null rows)))))
 
 (defun store-put-buffer (buf &key (kind "scratch"))
+  (let ((start (get-internal-real-time)))
+    (multiple-value-prog1 (store-put-buffer%raw buf :kind kind)
+      (fire-probe :ymacs-store :op "put-buffer" :latency-ms (probe-latency-ms start)))))
+
+(defun store-put-buffer%raw (buf &key (kind "scratch"))
   "Durably persist the CONTENT of an unnamed buffer. Called at create and
 on every mutation — the write IS the save, there is no dirty state."
   (with-store
@@ -133,6 +140,11 @@ on every mutation — the write IS the save, there is no dirty state."
       (buffer-content buf) kind (store-now) (store-now))))
 
 (defun store-get-buffer (id)
+  (let ((start (get-internal-real-time)))
+    (multiple-value-prog1 (store-get-buffer%raw id)
+      (fire-probe :ymacs-store :op "get-buffer" :latency-ms (probe-latency-ms start)))))
+
+(defun store-get-buffer%raw (id)
   "Values: NAME CONTENT KIND, or all NIL when absent."
   (with-store
     (let ((rows (sqlite:execute-to-list *store*
