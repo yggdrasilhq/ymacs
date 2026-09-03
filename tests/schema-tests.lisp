@@ -114,3 +114,55 @@
 
   (format t "~a passed, ~a failed~%" *test-pass* *test-fail*)
   (zerop *test-fail*))
+
+(defun run-toolbar-tests ()
+  (setf *test-pass* 0 *test-fail* 0)
+  (format t "ymacs tool-bar tests~%")
+
+  (test "tool-bar-mode is registered and toggles with a version edge"
+    (assert-eq* t (not (null (member "tool-bar-mode" (minibuffer-command-names)
+                                     :test #'string=))))
+    (let ((*tool-bar-visible* t))
+      (let ((before (document-version)))
+        (command-execute 'tool-bar-mode)
+        (assert-eq* nil *tool-bar-visible*)
+        (assert-eq* t (not (null (string/= before (document-version)))))
+        (command-execute 'tool-bar-mode)
+        (assert-eq* t *tool-bar-visible*))))
+
+  (test "the ribbon carries label + toolbar; widgets carry no toolbar"
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*tool-bar-visible* t))
+      (let ((buf (make-new-buffer "*tb*" "x")))
+        (setf *current-buffer* buf)
+        (let* ((schema (document-schema))
+               (ribbon (cdr (assoc "ribbon" schema :test #'string=)))
+               (widgets (cdr (assoc "widgets" schema :test #'string=))))
+          (assert-eq* 2 (length (coerce ribbon 'list)))
+          (assert-eq* "label" (cdr (assoc "kind" (aref ribbon 0) :test #'string=)))
+          (assert-eq* "toolbar" (cdr (assoc "kind" (aref ribbon 1) :test #'string=)))
+          (assert-eq* 4 (length (cdr (assoc "buttons" (aref ribbon 1) :test #'string=))))
+          (assert-eq* nil (find "toolbar" (coerce widgets 'list)
+                                :key (lambda (w) (cdr (assoc "kind" w :test #'string=)))
+                                :test #'string=))))))
+
+  (test "tool-bar off means no ribbon (host gives the card full rect)"
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*tool-bar-visible* nil))
+      (make-new-buffer "*tb2*" "x")
+      (assert-eq* nil (cdr (assoc "ribbon" (document-schema) :test #'string=)))))
+
+  (test "ribbon JSON validates under the strict contract"
+    (let* ((*buffers* (make-hash-table :test 'equal))
+           (*current-buffer* nil)
+           (*tool-bar-visible* t))
+      (make-new-buffer "*tb3*" "x")
+      (let ((json (sch-json `(("title" . "t")
+                              ("ribbon" . ,(cdr (assoc "ribbon" (document-schema)
+                                                       :test #'string=)))))))
+        (sch-assert-bools-strict json "ribbon"))))
+
+  (format t "~a passed, ~a failed~%" *test-pass* *test-fail*)
+  (zerop *test-fail*))

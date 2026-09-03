@@ -24,5 +24,6 @@
                                    (ymacs::run-surface-tests)
                                    (ymacs::run-sidebar-tests)
                                    (ymacs::run-schema-tests)
+                                   (ymacs::run-toolbar-tests)
                                    (ymacs::run-ingress-tests))
                               0 1))

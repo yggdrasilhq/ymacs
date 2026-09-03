@@ -326,6 +326,14 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
      first time (it was computed and discarded). Contract:
      `tests/ingress-tests.lisp` (8 tests speaking exact GUI POST shapes);
      keyboard/settings tests moved to the nested shape.
+   - **tool-bar-mode + ribbon, no menu-bar (2026-09-03):** the
+     in-viewport toolbar is gone; `M-x tool-bar-mode` toggles a ribbon
+     region (buffer label + Save/Settings/Buffers/Which-Key) rendered by
+     the host ABOVE the card on shell background, viewport below. There
+     is no menu-bar-mode in ymacs by design. Contract:
+     `run-toolbar-tests` (4 tests). Needs yggterm with the ribbon region
+     (same date); older GUIs ignore the unknown top-level key and keep
+     the editor, minus the moved toolbar.
   8. ELPA compat depth measured by a public test corpus (replace the
      "90%" target with numbers).
 

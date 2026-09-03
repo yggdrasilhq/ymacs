@@ -66,6 +66,20 @@ M-x sidebar — the rail holds a single ymacs icon; views switch behind it."
   (interactive "")
   (spawn-sidebar (or pane "buffers")))
 
+(defvar *tool-bar-visible* t
+  "tool-bar-mode: the ribbon strip above the viewport. On by default;
+M-x tool-bar-mode toggles. There is deliberately NO menu-bar-mode in
+ymacs — the ribbon is the only top chrome (spec-primitives §1.2).")
+
+(defcommand tool-bar-mode ()
+  "Toggle the ribbon toolbar above the viewport (ymacs has no menu bar)."
+  ;; Empty spec, not bare (interactive): bare never registers for M-x.
+  (interactive "")
+  (setf *tool-bar-visible* (not *tool-bar-visible*))
+  (bump-document-version)
+  (fire-probe :ymacs-sidebar-toggle :pane "tool-bar" :visible *tool-bar-visible*)
+  *tool-bar-visible*)
+
 (defun sidebar-document-version ()
   (format nil "~a-~a-~a" *frame-epoch* *sidebar-epoch* (if *sidebar-visible* *current-sidebar-pane* "hidden")))
 
