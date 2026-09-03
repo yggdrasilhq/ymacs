@@ -195,12 +195,15 @@
       (assert-eq* t *minibuffer-active*)
       (minibuffer-abort)))
 
-  (test "tool-bar off means no ribbon (host gives the card full rect)"
+  (test "tool-bar off means an EMPTY ribbon vector, never null (null kills
+the GUI schema parse — serde default covers missing, not null)"
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
            (*tab-bar-mode-on* nil))
       (make-new-buffer "*tb2*" "x")
-      (assert-eq* nil (cdr (assoc "ribbon" (document-schema) :test #'string=)))))
+      (let ((ribbon (cdr (assoc "ribbon" (document-schema) :test #'string=))))
+        (assert-eq* t (not (null ribbon)))
+        (assert-eq* 0 (length (coerce ribbon 'list))))))
 
   (test "ribbon JSON validates under the strict contract"
     (let* ((*buffers* (make-hash-table :test 'equal))
