@@ -399,8 +399,8 @@ sections column. Row ids are section names (the row_action value)."
                                 `(("kind" . "list-row")
                                   ("id" . ,s)
                                   ("title" . ,s)
-                                  ("selected" . ,(and *settings-section*
-                                                      (string= *settings-section* s)))
+                                  ("selected" . ,(json-bool (and *settings-section*
+                                                               (string= *settings-section* s))))
                                   ("row_action" . "settings-section")))
                               sections)
                       (list `(("kind" . "list-row")
@@ -424,10 +424,10 @@ control set is chosen by TYPE, never hand-mirrored."
                 ("buttons" . ,(vector
                                `(("action" . ,(format nil "settings-set:~a:true" id))
                                  ("label" . "On")
-                                 ("primary" . ,(eq current t)))
+                                 ("primary" . ,(json-bool (eq current t))))
                                `(("action" . ,(format nil "settings-set:~a:false" id))
                                  ("label" . "Off")
-                                 ("primary" . ,(not (eq current t)))))))
+                                 ("primary" . ,(json-bool (not (eq current t))))))))
               ;; No string/number settings exist yet; when one arrives
               ;; its control lands here, schema-driven. No fake buttons.
               `(("kind" . "label") ("muted" . t)

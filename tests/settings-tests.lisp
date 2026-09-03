@@ -192,7 +192,9 @@ no trailing newline"))
             (off (find-if (lambda (b) (search "false" (cdr (assoc "action" b :test #'string=))))
                           (coerce buttons 'list))))
         (st-assert t (cdr (assoc "primary" on :test #'string=)))
-        (st-assert nil (cdr (assoc "primary" off :test #'string=))))))
+        ;; Strict booleans on the wire: off is :false, never nil (the GUI
+        ;; validator rejects null where it expects a boolean).
+        (st-assert :false (cdr (assoc "primary" off :test #'string=))))))
 
   (st-test "settings view drops key_capture; closing restores the editor view"
     (let ((buf (make-new-buffer "*st-view*" "")))
@@ -209,7 +211,8 @@ no trailing newline"))
       (setf *current-buffer* buf)
       (settings-set "editor.word-wrap" "false")
       (let ((editor (st-editor-widget (document-schema))))
-        (st-assert nil (cdr (assoc "word_wrap" editor :test #'string=)))
+        ;; Strict booleans on the wire (see above): false reads :false.
+        (st-assert :false (cdr (assoc "word_wrap" editor :test #'string=)))
         (st-assert t (cdr (assoc "line_numbers" editor :test #'string=)))
         (settings-set "editor.word-wrap" "true")
         (st-assert t (cdr (assoc "word_wrap"

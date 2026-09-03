@@ -101,7 +101,11 @@
               (values (or content "") "new"))
         (let* ((rope (rope-from-string file-content))
                (buf (make-buffer :id id
-                                 :name (namestring effective)
+                                 :name (file-namestring effective) ; display: filename (Emacs parity).
+                                  ;; Identity stays the full path (id,
+                                  ;; file-path, value-key); same-named files
+                                  ;; in different dirs collide in display —
+                                  ;; disambiguation is open work.
                                  :file-path effective
                                  :rope rope
                                  :point 0
