@@ -217,7 +217,9 @@ chords never self-insert)."
   (interactive "p
 c")
   (when (and *current-buffer* ch)
-    (buffer-insert *current-buffer*
+    ;; WITH undo — pixel-verification caught plain insert here: typing was
+    ;; not undoable (C-/ on a fresh keystroke answered "no further undo").
+    (buffer-insert-with-undo *current-buffer*
                    (buffer-point *current-buffer*)
                    (make-string count :initial-element ch))
     (setf (buffer-point *current-buffer*)

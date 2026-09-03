@@ -99,9 +99,13 @@
       (let* ((url (string-trim '(#\Space #\Newline #\Return) (read-file-string path))))
         (when (and url (plusp (length url)) (ping-daemon url))
           (return-from ensure-daemon url)))))
-  ;; Spawn daemon: current sbcl image with --daemon
+  ;; Spawn daemon: current sbcl image with --daemon. The state directory
+  ;; must exist BEFORE the redirect — on a fresh machine (sandbox, first
+  ;; install) ~/.yggterm/ymacs/ does not exist and /bin/sh would fail the
+  ;; whole spawn silently, every boot, forever.
   (let* ((exe (or (sb-ext:posix-getenv "YMACS_BIN") (first sb-ext:*posix-argv*)))
          (home (ymacs-home)))
+    (ensure-directories-exist (merge-pathnames ".yggterm/ymacs/" home))
     (sb-ext:run-program "/bin/sh" (list "-c" (format nil "nohup ~a --daemon >~a/.yggterm/ymacs/daemon.log 2>&1 &" exe home))
                         :wait t :search t))
   ;; Wait up to 15s for daemon to write and answer — the 39MB core
