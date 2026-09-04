@@ -2,7 +2,7 @@
 (in-package #:ymacs)
 (defun manifest-json (binary-path)
   (format nil "{\"name\":\"ymacs\",\"label\":\"Ymacs\",\"icon\":\"📝\",\"binary\":\"~a\",\"verbs\":[{\"id\":\"new\",\"label\":\"New Ymacs\",\"args\":[]}],\"keytip\":\"E\"}"
-          (json-escape-string binary-path)))
+          (json-escape-string (namestring binary-path))))
 (defun apps-dir () (merge-pathnames "apps/" (state-dir)))
 (defun write-manifest-best-effort ()
   (handler-case
