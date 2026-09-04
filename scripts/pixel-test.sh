@@ -82,6 +82,14 @@ print('ribbon-bar' if 'ribbon-bar' in kinds else (kinds[0] if kinds else 'none')
 check "ribbon payload is a ribbon-bar" "ribbon-bar" "$RIBBON_KIND"
 
 say "== 2. type a marker through the key plane (point may sit anywhere) =="
+# Save what the buffer holds BEFORE typing: the store is durable by law,
+# so a test that types and does not restore pollutes every later boot
+# (found live 2026-09-04 — three runs of old markers greeted the boot).
+SAVED_JSON=$(ctl /pane/doc | python3 -c "import json,sys
+d=json.load(sys.stdin)
+ed=[x for x in (d.get('widgets') or []) if x.get('id')=='editor']
+import json as j
+print(j.dumps((ed[0].get('value') or '') if ed else '', ensure_ascii=False))")
 MARK="ZQX$(date +%H%M%S)"
 for w in $(echo "$MARK" | fold -w1); do act "{\"action\":\"key\",\"values\":{\"key\":\"$w\"}}" >/dev/null; done
 CONTENT=$(ctl /pane/doc | python3 -c "import json,sys
@@ -120,6 +128,20 @@ w=(d.get('widgets') or [])
 print('y' if any(x.get('kind')=='search' or x.get('id','').startswith('minibuffer') for x in w) else 'n')")
 check "palette opened" "y" "$PALETTE"
 act '{"action":"key","values":{"key":"C-g"}}' >/dev/null
+
+say "== 5b. cleanup: restore the buffer the test typed into =="
+if [ -n "${SAVED_JSON:-}" ]; then
+  act "{\"action\":\"eval\",\"form\":\"(progn (setf (buffer-content *current-buffer*) (rope-from-string $SAVED_JSON)) (bump-document-version))\"}" >/dev/null
+  RESTORED=$(ctl /pane/doc | python3 -c "import json,sys
+d=json.load(sys.stdin)
+ed=[x for x in (d.get('widgets') or []) if x.get('id')=='editor']
+v=(ed[0].get('value') or '') if ed else ''
+import json as j
+print('y' if v == j.loads(sys.argv[1]) else 'n')" "$SAVED_JSON")
+  check "buffer restored to pre-test content" "y" "$RESTORED"
+else
+  bad "could not save pre-test content (cleanup skipped)"
+fi
 
 say "== 6. pixels: capture the row through the GUI =="
 ROW=$($YGG server app rows 2>/dev/null | python3 -c "

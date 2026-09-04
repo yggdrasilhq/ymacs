@@ -460,10 +460,11 @@ still validate. Reachable book: override-or-default, strictly."
           status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)))
 
 (defun document-schema-widgets (base)
-  "BASE widgets plus the palette's widgets while a read is in flight."
+  "The palette's widgets FIRST while a read is in flight (its bar and
+candidate rows render above the editor — the Emacs shape), BASE after."
   (let ((mb (minibuffer-schema-widgets)))
     (if mb
-        (coerce (append (coerce base 'list) mb) 'vector)
+        (coerce (append mb (coerce base 'list)) 'vector)
         base)))
 
 (defun tab-bar-schema-tabs ()
@@ -533,7 +534,7 @@ signal."
                 ;; 2026-09-04 — the strip stayed mounted for 12s+).
                 ("ribbon" . ,(or (document-ribbon
                                    buf
-                                   (format nil "Buffer: ~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending)))
+                                   (format nil "~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending)))
                                  (vector)))
                 ("widgets" . ,(document-schema-widgets
                                (vector

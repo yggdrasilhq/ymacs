@@ -84,6 +84,11 @@ that look like commands, sorted — the M-x collection."
         *minibuffer-candidates* (minibuffer-filter "" collection)
         *minibuffer-selected* 0)
   (fire-probe :ymacs-minibuffer :prompt prompt)
+  ;; The palette widgets just entered (or left) the document schema; the
+  ;; GUI is a thin client that refetches /pane/doc only when this stamp
+  ;; moves. Without the bump the payload changes and the palette stays
+  ;; invisible (found live in the shadow 2026-09-04).
+  (bump-document-version)
   nil)
 
 (defun minibuffer-start-for-command (command)
@@ -108,6 +113,7 @@ C-x C-f lands here with find-file's \"fFind file: \")."
 (defun minibuffer-abort ()
   "C-g in the palette: leave everything untouched."
   (minibuffer-exit-state)
+  (bump-document-version)
   (reset-key-sequence)
   (fire-probe :ymacs-minibuffer :event "abort")
   nil)
@@ -130,6 +136,7 @@ with exactly the collected values — the record the macro keeps."
   (let ((sym *minibuffer-command*)
         (values (reverse *minibuffer-acc*)))
     (minibuffer-exit-state)
+    (bump-document-version)
     (fire-probe :ymacs-minibuffer :event "accept" :prompt (prin1-to-string sym))
           (command-execute sym :args values)))
 
@@ -197,6 +204,9 @@ palette key (the caller keeps its own reset semantics)."
      (setf *minibuffer-input* (concatenate 'string *minibuffer-input* chord))
      (minibuffer-refilter))
     (t nil))
+  ;; Candidates/selection/input all live in the schema the GUI refetches
+  ;; on the version stamp — every handled chord moves it.
+  (bump-document-version)
   t)
 
 ;;; --- Render (the palette is window chrome drawn from the doc schema) ------------
