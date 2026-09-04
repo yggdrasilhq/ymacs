@@ -66,10 +66,71 @@
     (lookup-key elisp/lookup-key) (featurep elisp/featurep)
     (current-buffer elisp/current-buffer) (insert elisp/insert)
     (delete-region elisp/delete-region) (buffer-string elisp/buffer-string)
-    (point elisp/point) (goto-char elisp/goto-char)))
+    (point elisp/point) (goto-char elisp/goto-char)
+    (defalias elisp/defalias) (define-package elisp/define-package)
+    (define-error elisp/define-error) (fset elisp/fset) (put elisp/put)
+    (concat elisp/concat) (mapconcat elisp/mapconcat)
+    (ignore elisp/ignore) (advice-add elisp/advice-add)
+    (define-obsolete-function-alias elisp/define-obsolete-function-alias)
+    (define-obsolete-variable-alias elisp/define-obsolete-variable-alias)))
 
 (defparameter *measure-macro-bindings*
-  '((defcustom elisp/defcustom) (use-package ymacs-use-package)))
+  '((defcustom elisp/defcustom) (use-package ymacs-use-package)
+    ;; the definition-form family (defmacros.lisp) — the 2026-09-04
+    ;; measurement showed the corpus hanging on exactly these
+    (defvar-local elisp/defvar-local) (defconst elisp/defconst)
+    (defsubst elisp/defsubst) (defface elisp/defface) (defgroup elisp/defgroup)
+    (cl-defun elisp/cl-defun) (cl-defmacro elisp/cl-defmacro)
+    (cl-defsubst elisp/cl-defsubst) (cl-defgeneric elisp/cl-defgeneric)
+    (cl-defmethod elisp/cl-defmethod) (cl-block elisp/cl-block)
+    (cl-return-from elisp/cl-return-from) (cl-tagbody elisp/cl-tagbody)
+    (cl-progv elisp/cl-progv)
+    (define-minor-mode elisp/define-minor-mode)
+    (defvar-keymap elisp/defvar-keymap)
+    (autoload elisp/autoload)
+    (eval-when-compile elisp/eval-when-compile)
+    (eval-and-compile elisp/eval-and-compile)
+    (declare-function elisp/declare-function)
+    (if-let elisp/if-let*) (if-let* elisp/if-let*)
+    (when-let elisp/when-let*) (when-let* elisp/when-let*)
+    (while-let elisp/while-let)
+    (thread-first elisp/thread-first) (thread-last elisp/thread-last)
+    (thread-as elisp/thread-as)
+    (with-eval-after-load elisp/with-eval-after-load)
+    (define-globalized-minor-mode elisp/define-globalized-minor-mode)))
+
+(defparameter *measure-cl-aliases*
+  '((cl-incf incf) (cl-decf decf) (cl-shiftf shiftf) (cl-rotatef rotatef)
+    (cl-psetf psetf) (cl-pushnew pushnew) (cl-remf remf)
+    (cl-loop loop) (cl-return return)
+    (cl-multiple-value-bind multiple-value-bind)
+    (cl-multiple-value-setq multiple-value-setq)
+    (cl-destructuring-bind destructuring-bind)
+    (cl-case case) (cl-ccase ccase) (cl-ecase ecase)
+    (cl-typecase typecase) (cl-etypecase etypecase) (cl-ctypecase ctypecase)
+    (cl-assert assert) (cl-check-type check-type)
+    (cl-ignore-errors ignore-errors)
+    (cl-first first) (cl-second second) (cl-third third) (cl-fourth fourth)
+    (cl-rest rest) (cl-list* list*) (cl-nthcdr nthcdr)
+    (cl-member member) (cl-assoc assoc) (cl-rassoc rassoc)
+    (cl-find find) (cl-find-if find-if) (cl-find-if-not find-if-not)
+    (cl-position position) (cl-count count) (cl-search search)
+    (cl-mismatch mismatch) (cl-substitute substitute)
+    (cl-remove remove) (cl-remove-if remove-if) (cl-remove-if-not remove-if-not)
+    (cl-delete delete) (cl-delete-if delete-if) (cl-delete-if-not delete-if-not)
+    (cl-subseq subseq) (cl-sort sort) (cl-stable-sort stable-sort)
+    (cl-merge merge) (cl-reduce reduce)
+    (cl-union union) (cl-intersection intersection)
+    (cl-set-difference set-difference) (cl-subsetp subsetp)
+    (cl-adjoin adjoin) (cl-remove-duplicates remove-duplicates)
+    (cl-mapcar mapcar) (cl-mapc mapc) (cl-mapcan mapcan) (cl-maplist maplist)
+    (cl-some some) (cl-every every) (cl-notany notany) (cl-notevery notevery)
+    (cl-gensym gensym) (cl-parse-integer parse-integer)
+    (cl-digit-char-p digit-char-p) (cl-concatenate concatenate)
+    (cl-plusp plusp) (cl-minusp minusp) (cl-zerop zerop)
+    (cl-evenp evenp) (cl-oddp oddp) (cl-min min) (cl-max max))
+  "cl-lib names ARE CL here — CL is ymacs's implementation of cl-lib —
+   so cl-incf is cl:incf and cl-loop is cl:loop. Aliases, not fakes.")
 
 (defparameter *measure-features* nil)
 
@@ -81,6 +142,17 @@
     (when (and sym (eq status :inherited))
       (shadow (list name) el))
     (intern name el)))
+
+(defun measure-bind-cl-aliases (el)
+  "Bind cl-lib names onto their CL implementations in the Elisp package."
+  (dolist (pair *measure-cl-aliases*)
+    (let ((alias (measure-elisp-symbol (string (first pair)) el))
+          (target (find-symbol (string (second pair)) :cl)))
+      (when target
+        (cond ((macro-function target)
+               (setf (macro-function alias) (macro-function target)))
+              ((fboundp target)
+               (setf (fdefinition alias) (fdefinition target))))))))
 
 (defun measure-install-env ()
   "Bind the shipped compat layer under its Elisp names in :ymacs-elisp."
@@ -95,6 +167,24 @@
         (when (and sym (macro-function sym))
           (setf (macro-function (measure-elisp-symbol (string (first b)) el))
                 (macro-function sym)))))
+    (measure-bind-cl-aliases el)
+    ;; cl-lib is provided by the shipped image (CL itself is the cl-lib
+    ;; implementation — the same stance modern-helpers.lisp blesses), and
+    ;; subr-x by defmacros.lisp's macro family. Canonical-name push: the
+    ;; require lookup downcases the symbol name, prin1 would package-
+    ;; qualify a :ymacs symbol and never match.
+    (pushnew "cl-lib" *measure-features* :test #'string=)
+    (pushnew "subr-x" *measure-features* :test #'string=)
+    ;; version-bound variables the corpus branches on
+    (setf (symbol-value (measure-elisp-symbol "EMACS-MAJOR-VERSION" el)) 30
+          (symbol-value (measure-elisp-symbol "EMACS-MINOR-VERSION" el)) 1)
+    (setf *autoload-file-loader*
+          (lambda (file)
+            (let ((path (or (and (probe-file file) file)
+                            (find-corpus-file (pathname-name file)))))
+              (unless path
+                (error 'corpus-unmet-dependency :feature file))
+              (corpus-load-file path))))
     (setf (fdefinition (measure-elisp-symbol "PROVIDE" el)) #'corpus-provide)
     (setf (fdefinition (measure-elisp-symbol "REQUIRE" el)) #'corpus-require)))
 
@@ -135,6 +225,12 @@
         *measure-results* nil
         *measure-by-path* (make-hash-table :test 'equal)
         *measure-in-flight* nil)
+  (setf *elisp-faces* (make-hash-table :test 'equal)
+        *elisp-custom-groups* (make-hash-table :test 'equal)
+        *elisp-buffer-locals* (make-hash-table :test 'equal)
+        *elisp-error-parents* (make-hash-table :test 'equal)
+        *elisp-autoloads* (make-hash-table :test 'equal)
+        *autoload-file-loader* nil)
   (let ((el (find-package :ymacs-elisp)))
     (do-symbols (s el)
       (when (eq (symbol-package s) el)

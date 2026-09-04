@@ -29,6 +29,7 @@
                (:module "elpa"
                 :components ((:file "elisp-reader")
                              (:file "compat")
+                             (:file "defmacros")
                              (:file "corpus")
                              (:file "use-package")
                              (:file "which-key")
