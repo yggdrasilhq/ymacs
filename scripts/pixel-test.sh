@@ -82,6 +82,14 @@ print('ribbon-bar' if 'ribbon-bar' in kinds else (kinds[0] if kinds else 'none')
 check "ribbon payload is a ribbon-bar" "ribbon-bar" "$RIBBON_KIND"
 
 say "== 2. type a marker through the key plane (point may sit anywhere) =="
+# Save what the buffer holds BEFORE typing: the store is durable by law,
+# so a test that types and does not restore pollutes every later boot
+# (found live 2026-09-04 — three runs of old markers greeted the boot).
+SAVED_JSON=$(ctl /pane/doc | python3 -c "import json,sys
+d=json.load(sys.stdin)
+ed=[x for x in (d.get('widgets') or []) if x.get('id')=='editor']
+import json as j
+print(j.dumps((ed[0].get('value') or '') if ed else '', ensure_ascii=False))")
 MARK="ZQX$(date +%H%M%S)"
 for w in $(echo "$MARK" | fold -w1); do act "{\"action\":\"key\",\"values\":{\"key\":\"$w\"}}" >/dev/null; done
 CONTENT=$(ctl /pane/doc | python3 -c "import json,sys
@@ -92,7 +100,7 @@ print('y' if '$MARK' in (ed[0].get('value') if ed else '') else 'n')")
 check "key plane typed the marker $MARK" "y" "$CONTENT"
 
 say "== 3. undo through the ribbon's command action =="
-act '{"action":"command:undo"}' >/dev/null
+for i in $(seq 1 ${#MARK}); do act '{"action":"command:undo"}' >/dev/null; done
 CONTENT=$(ctl /pane/doc | python3 -c "import json,sys
 d=json.load(sys.stdin)
 w=(d.get('widgets') or [{}])
@@ -121,13 +129,42 @@ print('y' if any(x.get('kind')=='search' or x.get('id','').startswith('minibuffe
 check "palette opened" "y" "$PALETTE"
 act '{"action":"key","values":{"key":"C-g"}}' >/dev/null
 
+say "== 5b. cleanup: restore the buffer the test typed into =="
+if [ -n "${SAVED_JSON:-}" ]; then
+  # Build the whole request body in python: the content rides three
+  # escaping levels (HTTP JSON -> form string -> CL literal), and hand
+  # -pasted escapes broke the body JSON every time.
+  BODY=$(python3 -c "
+import json,sys
+saved = json.loads(sys.argv[1])
+form = '(progn (setf (buffer-content *current-buffer*) ' + json.dumps(saved, ensure_ascii=False) + ') (bump-document-version))'
+print(json.dumps({'action': 'eval', 'form': form}))" "$SAVED_JSON")
+  act "$BODY" >/dev/null
+  sleep 1   # the version-bumped schema apply can lag the action reply
+  RESTORED=$(ctl /pane/doc | python3 -c "import json,sys
+d=json.load(sys.stdin)
+ed=[x for x in (d.get('widgets') or []) if x.get('id')=='editor']
+v=(ed[0].get('value') or '') if ed else ''
+import json as j
+want=j.loads(sys.argv[1])
+if v==want:
+    print('y')
+else:
+    sys.stderr.write('DBG lens %d/%d vhead=%r wanthead=%r' % (len(v), len(want), v[:36], want[:36]))
+    print('n')" "$SAVED_JSON")
+  check "buffer restored to pre-test content" "y" "$RESTORED"
+else
+  bad "could not save pre-test content (cleanup skipped)"
+fi
+
 say "== 6. pixels: capture the row through the GUI =="
-ROW=$($YGG server app rows 2>/dev/null | python3 -c "
+ROW=$($YGG server snapshot 2>/dev/null | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-rows=d['data']['rows']
-r=[x for x in rows if 'ymacs' in (x.get('title','')+str(x.get('purpose',''))).lower()]
-print(r[0]['full_path'] if r else '')" 2>/dev/null || true)
+s=d.get('data',d)
+for sess in (s.get('live_sessions') or []):
+    if 'ymacs' in str(sess.get('title','')).lower():
+        print(sess.get('session_path')); break" 2>/dev/null || true)
 if [ -n "${ROW:-}" ]; then
   $YGG server app screenshot "$SHOTDIR/row.png" --session "$ROW" >/dev/null 2>&1 || \
     $YGG server app screenshot "$SHOTDIR/row.png" >/dev/null 2>&1 || true
