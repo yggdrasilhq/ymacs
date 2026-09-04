@@ -84,7 +84,8 @@
 ;;; ---- Keymap emulation --------------------------------------------------
 
 (defstruct elisp-keymap
-  (bindings (make-hash-table :test 'equal)))
+  (bindings (make-hash-table :test 'equal))
+  (parent nil))
 
 (defun elisp/make-keymap ()
   (make-elisp-keymap))
@@ -97,7 +98,10 @@
     (elisp/define-key map key def)))
 
 (defun elisp/lookup-key (map key)
-  (gethash key (elisp-keymap-bindings map)))
+  ;; walk the parent chain (defvar-keymap :parent), innermost binding wins
+  (cond ((null map) nil)
+        ((gethash key (elisp-keymap-bindings map)))
+        (t (elisp/lookup-key (elisp-keymap-parent map) key))))
 
 ;;; ---- Feature / provide / require ---------------------------------------
 
