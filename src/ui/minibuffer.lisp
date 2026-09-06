@@ -98,8 +98,12 @@ that look like commands, sorted — the M-x collection."
         *minibuffer-input* ""
         *minibuffer-error* nil
         *minibuffer-collection-base* collection
-        *minibuffer-candidates* (minibuffer-filter "" collection)
+        *minibuffer-candidates* (minibuffer-rank-candidates
+                                 (minibuffer-filter "" collection))
         *minibuffer-selected* 0)
+  ;; Phase 1 ranks by recency and shows bindings: rebuild the reverse
+  ;; binding map so the rows carry which-key hints.
+  (when (minibuffer-strict-p) (minibuffer-rebuild-binding-table))
   (fire-probe :ymacs-minibuffer :prompt prompt)
   ;; The palette surface just entered (or left) the document schema; the
   ;; GUI is a thin client that refetches /pane/doc only when this stamp
@@ -144,7 +148,8 @@ C-x C-f lands here with find-file's \"fFind file: \")."
 
 (defun minibuffer-refilter ()
   (setf *minibuffer-candidates*
-        (minibuffer-filter *minibuffer-input* *minibuffer-collection-base*)
+        (minibuffer-rank-candidates
+         (minibuffer-filter *minibuffer-input* *minibuffer-collection-base*))
         *minibuffer-selected* 0)
   ;; A lenient read accepts what was typed even when it matches nothing
   ;; (C-x b foo RET creates foo). The raw input rides at the END of the
@@ -175,6 +180,7 @@ with exactly the collected values — the record the macro keeps."
     (cond
       ;; Phase 1 done: the value names a command.
       ((null *minibuffer-command*)
+       (minibuffer-note-command-selection value)
        (let* ((sym (find-symbol (string-upcase value) :ymacs)))
          (cond
            ((and sym (fboundp sym))
@@ -200,6 +206,85 @@ with exactly the collected values — the record the macro keeps."
                (minibuffer-start (subseq line 1)
                                  (minibuffer-collection-for (char line 0))))
              (minibuffer-finish)))))))
+
+;;; --- Intelligence: recency, completion, hints, descriptions ---------------------
+
+(defvar *command-epoch* 0 "Bumped on every M-x selection.")
+(defvar *command-last-run* (make-hash-table :test 'equal)
+  "Command name -> epoch of its most recent M-x selection.")
+
+(defun minibuffer-note-command-selection (name)
+  "Recency ledger for the M-x collection: WHICH command the read
+finished with. Recorded at the read's accept — the same choke-point
+discipline as the macro record, so headless replays rank identically.
+Self-insertion and motion never enter it: they are not M-x selections."
+  (incf *command-epoch*)
+  (setf (gethash name *command-last-run*) *command-epoch*))
+
+(defun minibuffer-rank-candidates (candidates)
+  "The M-x collection's display order: most recently run first, then
+alphabetical — the omnibox rule the owner asked for (recently used
+commands on top). Phase-2 collections keep their natural order."
+  (if (minibuffer-strict-p)
+      (sort candidates
+            (lambda (a b)
+              (let ((ra (gethash a *command-last-run*))
+                    (rb (gethash b *command-last-run*)))
+                (cond ((and ra rb) (> ra rb))
+                      (ra t)
+                      (rb nil)
+                      (t (string< a b))))))
+      candidates))
+
+(defvar *command-binding-table* (make-hash-table :test 'equal)
+  "Command name (downcase) -> its shortest global binding. Rebuilt
+from the global map whenever a phase-1 read opens — one maphash, and
+which-key's data (the keymap) stays the single source of truth.")
+
+(defun minibuffer-rebuild-binding-table ()
+  (clrhash *command-binding-table*)
+  (maphash
+   (lambda (key cmd)
+     (when (symbolp cmd)
+       (let* ((name (string-downcase (symbol-name cmd)))
+              (k key)
+              (old (gethash name *command-binding-table*)))
+         (when (or (null old) (< (length k) (length old)))
+           (setf (gethash name *command-binding-table*) k)))))
+   (elisp-keymap-bindings *global-map*)))
+
+(defun command-binding-hint (name)
+  "The key binding to show at the row's right edge ("C-x C-f"), or
+NIL — unbound commands show nothing, exactly as Emacs's where-is
+answers nothing."
+  (gethash name *command-binding-table*))
+
+(defun command-description (sym)
+  "The command's documentation string, first line, capped — the
+quieter half of the row (a slightly smaller, lighter line beside the
+command, like the omnibox's descriptions)."
+  (let ((doc (and (fboundp sym) (ignore-errors (documentation sym 'function)))))
+    (when doc
+      (let* ((trimmed (string-trim '(#\Space #\Newline #\Tab) doc))
+             (nl (position #\Newline trimmed))
+             (line (if nl (subseq trimmed 0 nl) trimmed)))
+        (when (> (length line) 80)
+          (setf line (concatenate 'string (subseq line 0 77) "...")))
+        (if (plusp (length line)) line nil)))))
+
+(defun minibuffer-completion ()
+  "The inline-completion candidate: the FIRST ranked candidate that
+extends what was typed (the omnibox's top suggestion shown in the
+field, tail selected — typing continues over it or TAB takes it). NIL
+when the input is empty or nothing extends it."
+  (let ((input *minibuffer-input*))
+    (when (plusp (length input))
+      (let ((u (string-upcase input)))
+        (find-if (lambda (c)
+                   (and (> (length c) (length input))
+                        (string= u (string-upcase c)
+                                 :end2 (length input))))
+                 *minibuffer-candidates*)))))
 
 ;;; --- Keys (the palette's own map; never recorded) -------------------------------
 
@@ -289,14 +374,25 @@ read is in flight (the key is then OMITTED — the host rejects nulls).
   (when *minibuffer-active*
     (let* ((window (minibuffer-visible-window))
            (items (loop for i in window
-                        collect `(("id" . ,(nth i *minibuffer-candidates*))
-                                  ("label" . ,(nth i *minibuffer-candidates*))))))
+                        for cand = (nth i *minibuffer-candidates*)
+                        collect `(("id" . ,cand)
+                                  ("label" . ,cand)
+                                  ("detail" . ,(or (command-description
+                                                    (find-symbol (string-upcase cand)
+                                                                 :ymacs))
+                                                   ""))
+                                  ("hint" . ,(or (command-binding-hint cand) ""))))))
       `(("query" . ,*minibuffer-input*)
         ("prompt" . ,(string-right-trim '(#\Space) *minibuffer-prompt*))
         ("selected" . ,(if window
                            (position *minibuffer-selected* window :test #'=)
                            0))
         ("items" . ,(apply #'vector (or items nil)))
+        ;; The omnibox flourish: the top-ranked candidate extends what was
+        ;; typed — the host shows it in the field with the tail selected,
+        ;; so typing is uninterrupted and TAB/RET take it.
+        ("completion" . ,(or (minibuffer-completion) ""))
+        ("completion_typed_len" . ,(length *minibuffer-input*))
         ;; The empty-list voice: the last refusal when there is one
         ;; (phase 1 RET on a non-command — Emacs's [No match]), the
         ;; host's own "No matches" otherwise.

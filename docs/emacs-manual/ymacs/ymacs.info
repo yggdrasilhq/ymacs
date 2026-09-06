@@ -163,6 +163,15 @@ Re-shaping the palette cannot break a recorded macro.
 ‘C-g’
      Quit the read: nothing runs, nothing changes.
 
+   The palette is “intelligent” in the omnibox sense.  Commands you have
+run recently rank first; the top candidate that extends what you typed
+appears in the field itself with its tail selected, so typing is never
+interrupted -- continue typing to refine it, or take it with ‘TAB’ or
+<RET>.  Each row also shows, at its right edge, the command's key
+binding when it has one (‘C-x C-f’ beside ‘find-file’), and beside the
+name a short description drawn from the command's own documentation
+string.
+
    Reads that collect an argument for a command (‘C-x C-f’'s "Find file:
 ", ‘C-x b’'s buffer name, and every other ‘interactive’ spec) use the
 same palette.  There the read is “lenient”: what you typed is itself
@@ -201,7 +210,7 @@ Node: Profiles2506
 Node: The Perpetual Session3623
 Node: The Store4158
 Node: The Command Palette5299
-Node: Info Mode7633
+Node: Info Mode8148
 
 End Tag Table
 

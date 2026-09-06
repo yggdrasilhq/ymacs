@@ -193,6 +193,15 @@ Run the current candidate, or collect it as the answer to the read.
 Quit the read: nothing runs, nothing changes.
 @end table
 
+The palette is @dfn{intelligent} in the omnibox sense. Commands you
+have run recently rank first; the top candidate that extends what you
+typed appears in the field itself with its tail selected, so typing is
+never interrupted --- continue typing to refine it, or take it with
+@kbd{TAB} or @key{RET}. Each row also shows, at its right edge, the
+command's key binding when it has one (@kbd{C-x C-f} beside
+@code{find-file}), and beside the name a short description drawn from
+the command's own documentation string.
+
 Reads that collect an argument for a command (@kbd{C-x C-f}'s ``Find
 file: '', @kbd{C-x b}'s buffer name, and every other @code{interactive}
 spec) use the same palette. There the read is @dfn{lenient}: what you
