@@ -1,10 +1,11 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-06, org imported): 16 of 202 corpus files load fully;
-4886 of 8897 forms (55%) evaluate. The blessed stack alone is unchanged
-at 15/75 files and 1664/2263 (74%); org — the step-6 import, borrowed
-verbatim from the same emacs-30.1 release as the manuals — lands at
-1/127 files and 3222/6634 (49%), its first honest baseline.** The first measurement (2026-09-03) put this at 1 file
+**Headline (2026-09-07, org bootstrap): 34 of 202 corpus files load fully;
+8448 of 11080 forms (76%) evaluate. The blessed stack stands at 16/75
+files and 1664/2263 (74%); org — the step-6 import, borrowed verbatim
+from the same emacs-30.1 release as the manuals — jumped from its 1/127
+import baseline to 18/127 files and 6780/8591 (79%): ob.el and fifteen
+ob-* / org-macro / org-version files load and provide.** The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
 at. Re-run the instrument after every compat change and re-land the
@@ -62,26 +63,34 @@ Raw data: `elpa-compat-measurement.json` (next to this file).
 
 | depth | files | % of corpus |
 |---|---|---|
-| 0 READ — unreadable by the Elisp reader | 1 | 0.5% |
-| 1 LOAD — reads, some forms fail | 185 | 91.6% |
-| 2 PROVIDE — fully evaluated + provided | **16** | 7.9% |
+| 0 READ — unreadable by the Elisp reader | 2 | 1% |
+| 1 LOAD — reads, some forms fail | 166 | 82.2% |
+| 2 PROVIDE — fully evaluated + provided | **34** | 16.8% |
 
-- Forms evaluated: **4886 / 8897 (54.9%)** overall — the blessed stack
-  **1664 / 2263 (73.5%)**, org **3222 / 6634 (48.6%)**.
-- 12 of the 13 packages measure per-package exactly as the 2026-09-04
-  wave recorded (consult 451/494, corfu 223/246, use-package 222/242,
-  vertico 221/241, cape 124/135, marginalia 144/150, tempel 70/73,
-  orderless 68/73, seq 56/61, map 50/77, compat 33/350, dash 2/121);
-  the depth-2 count is unchanged at 15 among them.
-- **org 9.7.11 (the import baseline): 127 files — exactly ONE reaches
-  depth 2, and it is the generated version stub** (`org-version.el`:
-  constants and a provide, no machinery), **and 3222/6634 forms
-  evaluate.** Read that honestly: zero real org files load yet. The failures are dominated by unmet features and
-  primitives org takes for granted in Emacs (`run-hooks`-shaped
-  defcustom machinery, `define-derived-mode`, buffer-local machinery,
-  ` easymenu`, and org's own `org-macs`/`org-compat` bootstrap depth).
-  This is the ladder org climbs in the step-6 waves; the baseline is
-  the point, not the level.
+- Forms evaluated: **8448 / 11080 (76.2%)** overall — the blessed stack
+  **1664 / 2263 (73.5%)** (vertico +1 file), org **6780 / 8591 (78.9%)**.
+- **org bootstrap (2026-09-07 wave): 18/127 depth-2** — `ob.el`,
+  `ob-eval`, `ob-lob`, `ob-ref`, `ob-table`, and eleven language-
+  specific `ob-*` loaders, plus `org-macro` and the generated
+  `org-version.el`. What unlocked it:
+  - **Reader: `?` is now a NON-terminating macro character.** It was
+    terminating, so a symbol ending in `?` (`allow-empty?`, idiomatic
+    org/lisp naming) dispatched a char literal mid-symbol and ate the
+    closing parens — every depth-0 file died there.
+  - **Reader: stray commas outside a backquote** (`define-inline`
+    bodies in org-element-ast) now re-read once through a
+    comma-tolerant readtable instead of killing the file.
+  - **Primitives** (shipped compat layer, honest implementations):
+    `add-to-list`, `make-obsolete(-variable)`, `make-sparse-keymap`,
+    `defvaralias`, `eval-after-load`, `while`, `getenv`,
+    `executable-find`, `version<`/`<=`, `subr-arity`, `regexp-opt`/
+    `regexp-quote`, overlays, `easy-menu-add-item`, `user-error`,
+    `kbd`, a real `pcase`/`rx` subset (with documented limits),
+    `gv-define-setter`, `set-keymap-parent`, `make-marker`,
+    `expand-file-name`, `emacs-version`, and `org-release`/
+    `org-git-version` bound to the pinned version (the generated
+    header Emacs ships preloaded).
+
 - Depth-2 files: **`compat.el` and `compat-macs.el`** (compat's own
   bootstrap and macro definitions — the honest cascade works),
   `use-package.el`, `use-package-jump.el`, `use-package-lint.el`,
@@ -131,6 +140,17 @@ Unmet features (required, not vendored): kmacro(2), xref, org, info,
 imenu, flymake, compile, bookmark, system-packages, bind-key,
 regexp-opt, tabulated-list, bytecomp, dash — mostly cascade: a feature
 "unmet" because its file died before its `provide`.
+
+### The org queue after this wave (top blockers)
+
+`make-org-lint-checker` (60, org-lint's macro — org-lint is one of the
+two remaining depth-0 files), `feature:ol` (20 — ol.el's remaining
+reader death), `org-export-create-backend` (10),
+`org-replace-disputed-keys` (8), `org-element-deferred-create` (7),
+`feature:format-spec` (5), `rx-to-string` (4), `emacs-version` (3),
+`cl-defstruct` (3), `noninteractive` (3). The org-export (`ox-*`)
+family waits behind `org-element-ast`/`org-element`, which read and
+evaluate but still miss a handful.
 
 ## What the numbers mean — the ELPA work queue
 

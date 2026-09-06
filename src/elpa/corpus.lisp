@@ -75,7 +75,23 @@
     (concat elisp/concat) (mapconcat elisp/mapconcat)
     (ignore elisp/ignore) (advice-add elisp/advice-add)
     (define-obsolete-function-alias elisp/define-obsolete-function-alias)
-    (define-obsolete-variable-alias elisp/define-obsolete-variable-alias)))
+    (define-obsolete-variable-alias elisp/define-obsolete-variable-alias)
+    (make-obsolete elisp/make-obsolete) (make-obsolete-variable elisp/make-obsolete-variable)
+    (make-sparse-keymap elisp/make-sparse-keymap) (defvaralias elisp/defvaralias)
+    (version< elisp/version<) (version<= elisp/version<=)
+    (subr-arity elisp/subr-arity) (getenv elisp/getenv)
+    (executable-find elisp/executable-find) (regexp-opt elisp/regexp-opt)
+    (regexp-quote elisp/regexp-quote) (make-overlay elisp/make-overlay)
+    (overlay-put elisp/overlay-put) (delete-overlay elisp/delete-overlay)
+    (move-overlay elisp/move-overlay) (easy-menu-add-item elisp/easy-menu-add-item)
+    (user-error elisp/user-error)
+    (kbd elisp/kbd) (set-keymap-parent elisp/set-keymap-parent)
+    (make-marker elisp/make-marker) (expand-file-name elisp/expand-file-name)
+    (emacs-version elisp/emacs-version)
+    (org-release elisp/org-release) (org-git-version elisp/org-git-version)
+    (org-link-set-parameter elisp/org-link-set-parameter)
+    (org-link-set-parameters elisp/org-link-set-parameters)
+    (org-cite-register-processor elisp/org-cite-register-processor)))
 
 (defparameter *measure-macro-bindings*
   '((defcustom elisp/defcustom) (use-package ymacs-use-package)
@@ -100,7 +116,13 @@
     (thread-first elisp/thread-first) (thread-last elisp/thread-last)
     (thread-as elisp/thread-as)
     (with-eval-after-load elisp/with-eval-after-load)
-    (define-globalized-minor-mode elisp/define-globalized-minor-mode)))
+    (define-globalized-minor-mode elisp/define-globalized-minor-mode)
+    ;; the org bootstrap wave (2026-09-07)
+    (add-to-list elisp/add-to-list) (eval-after-load elisp/eval-after-load)
+    (define-advice elisp/define-advice) (while elisp/while)
+    (pcase-dolist elisp/pcase-dolist)
+    (rx elisp/rx) (rx-to-string elisp/rx-to-string)
+    (gv-define-setter elisp/gv-define-setter) (pcase elisp/pcase)))
 
 (defparameter *measure-cl-aliases*
   '((cl-incf incf) (cl-decf decf) (cl-shiftf shiftf) (cl-rotatef rotatef)
@@ -171,6 +193,13 @@
           (setf (macro-function (measure-elisp-symbol (string (first b)) el))
                 (macro-function sym)))))
     (measure-bind-cl-aliases el)
+    ;; Emacs-predefined variables the corpus references bare
+    (dolist (v (list (cons "user-init-file" nil)
+                     (cons "user-emacs-directory" "~/.emacs.d/")
+                     (cons "load-file-name" nil)))
+      (let ((sym (measure-elisp-symbol (car v) el)))
+        (proclaim `(special ,sym))
+        (setf (symbol-value sym) (cdr v))))
     ;; cl-lib is provided by the shipped image (CL itself is the cl-lib
     ;; implementation — the same stance modern-helpers.lisp blesses), and
     ;; subr-x by defmacros.lisp's macro family. Canonical-name push: the

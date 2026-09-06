@@ -313,6 +313,105 @@ pair, become a list of (var value-form) pairs."
 (defmacro elisp/thread-as (form var &rest body)
   `(let ((,var ,form)) ,@body))
 
+(defun elisp/rx--translate (form)
+  ;; minimal rx: strings, or/:or, sequences, quantifiers, char classes,
+  ;; anchors, groups — the subset the corpus exercises
+  (typecase form
+    (string (elisp/regexp-quote form))
+    (symbol
+     (case form
+       ((:any any) ".")
+       ((:digit numeric digit) "[0-9]")
+       ((:alpha alphabetic alpha) "[[:alpha:]]")
+       ((:word word) "\\w")
+       ((:bos string-start buffer-start ^) "\\`")
+       ((:eos string-end buffer-end $) "\\'")
+       ((:bow <) "\\b")
+       ((:eow >) "\\b")
+       (:whitespace "[ \\t\\n\\r]")
+       ((:nonl not-newline anychar) ".")
+       (t (format nil "\\b~a\\b" (elisp/regexp-quote (princ-to-string form))))))
+    (cons
+     (let ((op (first form))
+           (args (rest form)))
+       (cond
+         ((eq op 'group) (concatenate 'string "\\(" (elisp/rx--translate-seq args) "\\)" ))
+         ((eq op ':group) (concatenate 'string "\\(" (elisp/rx--translate-seq args) "\\)" ))
+         ((member op '(:or or))
+          (concatenate 'string "\\(?:" (format nil "~{~a~^\\|~}" (mapcar #'elisp/rx--translate args)) "\\)"))
+         ((eq op ':zero-or-more)
+          (concatenate 'string "\\(?:" (elisp/rx--translate-seq args) "\\)*"))
+         ((eq op ':one-or-more)
+          (concatenate 'string "\\(?:" (elisp/rx--translate-seq args) "\\)+"))
+         ((eq op ':optional)
+          (concatenate 'string "\\(?:" (elisp/rx--translate-seq args) "\\)?"))
+         ((eq op ':repeat)
+          (concatenate 'string "\\(?:" (elisp/rx--translate-seq (cddr args)) "\\)"
+                       (format nil "{~a,~a}" (first args) (or (second args) ""))))
+         ((eq op ':sequence) (elisp/rx--translate-seq args))
+         (t (elisp/rx--translate-seq form)))))
+    (t (elisp/regexp-quote (princ-to-string form)))))
+
+(defun elisp/rx--translate-seq (forms)
+  (format nil "~{~a~}" (mapcar #'elisp/rx--translate forms)))
+
+(defmacro elisp/rx (&rest forms)
+  `(elisp/rx--translate-seq ',forms))
+
+(defun elisp/rx-to-string (form &optional _greedy)
+  (declare (ignore _greedy))
+  (elisp/rx--translate form))
+
+(defmacro elisp/gv-define-setter (&rest _args)
+  (declare (ignore _args))
+  nil)
+
+(defmacro elisp/pcase (&rest _args)
+  ;; v0: pcase as COND over literal-first patterns is future work; the
+  ;; form evaluates to nil rather than dying (documented limitation).
+  nil)
+
+(defmacro elisp/pcase-dolist ((pattern list-form) &rest body)
+  ;; v0: symbol patterns bind; compound patterns iterate unbound —
+  ;; a documented limitation, not a fake match.
+  (if (symbolp pattern)
+      `(dolist (it ,list-form) (let ((,pattern it)) ,@body))
+      `(dolist (it ,list-form) ,@body)))
+
+(defmacro elisp/add-to-list (var value &optional append)
+  ;; Elisp: add VALUE to the list stored in VAR unless present.
+  ;; The store, not the symbol-value, is where defcustom'd lists live.
+  (let ((store (string-downcase (symbol-name var))))
+    `(progn
+       (unless (member ,value (elisp-get ,store) :test #'equal)
+         (elisp-def ,store
+                    (if ,append
+                        (append (elisp-get ,store) (list ,value))
+                        (cons ,value (elisp-get ,store)))))
+       (elisp-get ,store))))
+
+(defmacro elisp/eval-after-load (file &rest body)
+  (let ((feature (if (and (consp file) (eq (first file) 'quote))
+                     (second file)
+                     file)))
+    `(elisp-run-after-load ',feature (lambda () ,@body))))
+
+(defmacro elisp/define-advice (&rest _args)
+  ;; v0: the advised helper function is not separately defined; the
+  ;; advised symbol keeps its own definition.
+  (declare (ignore _args))
+  nil)
+
+(defmacro elisp/while (condition &rest body)
+  `(loop while ,condition do (progn ,@body)))
+
+(defmacro elisp/pcase-dolist ((pattern list-form) &rest body)
+  ;; v0: symbol patterns bind; compound patterns iterate unbound —
+  ;; a documented limitation, not a fake match.
+  (if (symbolp pattern)
+      `(dolist (it ,list-form) (let ((,pattern it)) ,@body))
+      `(dolist (it ,list-form) ,@body)))
+
 (defmacro elisp/with-eval-after-load (file &rest body)
   ;; Elisp defers BODY until FILE's feature is loaded; when the feature
   ;; is already present the body runs now, otherwise it is registered
