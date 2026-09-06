@@ -1,10 +1,11 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-06, org imported): 16 of 202 corpus files load fully;
-4886 of 8897 forms (55%) evaluate. The blessed stack alone is unchanged
-at 15/75 files and 1664/2263 (74%); org — the step-6 import, borrowed
-verbatim from the same emacs-30.1 release as the manuals — lands at
-1/127 files and 3222/6634 (49%), its first honest baseline.** The first measurement (2026-09-03) put this at 1 file
+**Headline (2026-09-07, org bootstrap): 34 of 202 corpus files load fully;
+8448 of 11080 forms (76%) evaluate. The blessed stack stands at 16/75
+files and 1664/2263 (74%); org — the step-6 import, borrowed verbatim
+from the same emacs-30.1 release as the manuals — jumped from its 1/127
+import baseline to 18/127 files and 6780/8591 (79%): ob.el and fifteen
+ob-* / org-macro / org-version files load and provide.** The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
 at. Re-run the instrument after every compat change and re-land the
@@ -139,6 +140,17 @@ Unmet features (required, not vendored): kmacro(2), xref, org, info,
 imenu, flymake, compile, bookmark, system-packages, bind-key,
 regexp-opt, tabulated-list, bytecomp, dash — mostly cascade: a feature
 "unmet" because its file died before its `provide`.
+
+### The org queue after this wave (top blockers)
+
+`make-org-lint-checker` (60, org-lint's macro — org-lint is one of the
+two remaining depth-0 files), `feature:ol` (20 — ol.el's remaining
+reader death), `org-export-create-backend` (10),
+`org-replace-disputed-keys` (8), `org-element-deferred-create` (7),
+`feature:format-spec` (5), `rx-to-string` (4), `emacs-version` (3),
+`cl-defstruct` (3), `noninteractive` (3). The org-export (`ox-*`)
+family waits behind `org-element-ast`/`org-element`, which read and
+evaluate but still miss a handful.
 
 ## What the numbers mean — the ELPA work queue
 
