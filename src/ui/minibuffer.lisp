@@ -8,6 +8,15 @@
 ;;;; and what replays headless. Prompting is generic: any command whose
 ;;;; spec needs a value the caller did not supply opens the palette,
 ;;;; which is exactly Emacs's `C-x C-f` -> "Find file: " behaviour.
+;;;;
+;;;; The view is the yggui COMMAND PALETTE component, rendered by the
+;;;; host as an overlay surface (spec-primitives S3 — a window
+;;;; component, never document widgets): this module declares the
+;;;; palette block of the document schema (query, prompt, candidates,
+;;;; selection) and answers the palette's mouse actions. The keyboard
+;;;; keeps flowing through the key plane as chords — TAB, C-n/C-p, C-g
+;;;; and typing stay Emacs keys; the component's own arrows/RET/ESC
+;;;; arrive as palette-move/palette-accept/palette-dismiss actions.
 
 (in-package #:ymacs)
 
@@ -26,7 +35,7 @@
 (defvar *minibuffer-remaining-prompts* nil "Unconsumed (code prompt) lines.")
 (defvar *minibuffer-acc* nil "Collected parameter values, most recent first.")
 
-(defparameter minibuffer-visible-max 8)
+(defparameter minibuffer-visible-max 12)
 
 ;;; --- Filtering (orderless-ish: every space-separated part matches) --------
 
@@ -42,6 +51,14 @@
            (let ((u (string-upcase cand)))
              (every (lambda (part) (search part u :test #'string=)) parts)))
          candidates))))
+
+(defun minibuffer-strict-p ()
+  "T when the read in flight refuses non-candidates: phase 1 of M-x,
+where Emacs itself answers [No match] for a non-command. Everything
+else — file names, buffer names, free text — accepts what was typed
+(C-x b foo RET creates foo), so the palette always offers the raw
+input as a candidate there."
+  (null *minibuffer-command*))
 
 ;;; --- Collections ------------------------------------------------------------
 
@@ -84,7 +101,7 @@ that look like commands, sorted — the M-x collection."
         *minibuffer-candidates* (minibuffer-filter "" collection)
         *minibuffer-selected* 0)
   (fire-probe :ymacs-minibuffer :prompt prompt)
-  ;; The palette widgets just entered (or left) the document schema; the
+  ;; The palette surface just entered (or left) the document schema; the
   ;; GUI is a thin client that refetches /pane/doc only when this stamp
   ;; moves. Without the bump the payload changes and the palette stays
   ;; invisible (found live in the shadow 2026-09-04).
@@ -128,7 +145,18 @@ C-x C-f lands here with find-file's \"fFind file: \")."
 (defun minibuffer-refilter ()
   (setf *minibuffer-candidates*
         (minibuffer-filter *minibuffer-input* *minibuffer-collection-base*)
-        *minibuffer-selected* 0))
+        *minibuffer-selected* 0)
+  ;; A lenient read accepts what was typed even when it matches nothing
+  ;; (C-x b foo RET creates foo). The raw input rides at the END of the
+  ;; candidate list, so every selection/accept path — C-n into it, RET on
+  ;; it, a click — is the ordinary machinery; phase 1 (M-x) is strict and
+  ;; never gets the row, exactly as Emacs refuses a non-command.
+  (when (and (not (minibuffer-strict-p))
+             (plusp (length *minibuffer-input*))
+             (not (member *minibuffer-input* *minibuffer-candidates*
+                          :test #'string=)))
+    (setf *minibuffer-candidates*
+          (append *minibuffer-candidates* (list *minibuffer-input*)))))
 
 (defun minibuffer-finish ()
   "All parameters collected: run the command through the choke point
@@ -209,23 +237,67 @@ palette key (the caller keeps its own reset semantics)."
   (bump-document-version)
   t)
 
-;;; --- Render (the palette is window chrome drawn from the doc schema) ------------
+;;; --- Palette actions (the mouse half of the surface) -----------------------------
 
-(defun minibuffer-visible-candidates (&optional (max minibuffer-visible-max))
-  (let ((rows (min (length *minibuffer-candidates*) max)))
-    (loop for i below rows
-          collect (list i (nth i *minibuffer-candidates*)))))
+(defun minibuffer-palette-move (dir)
+  "A palette-move action: DIR is next/previous/first/last. The
+selection WRAPS both ways, like the host's palette_index_after — a
+launcher you steer by feel must not stop dead at an edge."
+  (let ((len (length *minibuffer-candidates*)))
+    (when (plusp len)
+      (let ((sel *minibuffer-selected*))
+        (setf *minibuffer-selected*
+              (cond
+                ((string= dir "next") (if (= sel (1- len)) 0 (1+ sel)))
+                ((string= dir "previous") (if (zerop sel) (1- len) (1- sel)))
+                ((string= dir "first") 0)
+                ((string= dir "last") (1- len))
+                (t sel)))))))
 
-(defun minibuffer-schema-widgets ()
-  "The palette widgets appended to the document schema while active."
+(defun minibuffer-palette-accept-id (id)
+  "A palette-accept action: ID is a clicked row's id, or the
+component's Enter carrying the selected row's id. The id is accepted BY
+NAME — refilter against it, select it, accept — so a stale row (the
+list moved under the click) reads exactly like typing the full name,
+which is how M-x itself accepts a complete command name."
+  (when (and *minibuffer-active* (plusp (length id)))
+    (setf *minibuffer-input* id)
+    (minibuffer-refilter)
+    (let ((pos (position id *minibuffer-candidates* :test #'string=)))
+      (when pos (setf *minibuffer-selected* pos)))
+    (minibuffer-accept))
+  nil)
+
+;;; --- Render (the palette surface block of the document schema) -------------------
+
+(defun minibuffer-visible-window (&optional (max minibuffer-visible-max))
+  "The GLOBAL indices of the candidate window the surface shows: a
+sliding frame around the selection, so the selected row is always on
+screen (the palette component scrolls its results box but does not
+follow the selection). Ids stay absolute, so acceptance is unambiguous."
+  (let* ((len (length *minibuffer-candidates*))
+         (rows (min len max)))
+    (when (plusp rows)
+      (let ((start (max 0 (min (- *minibuffer-selected* (floor rows 2))
+                               (- len rows)))))
+        (loop for i below rows collect (+ start i))))))
+
+(defun minibuffer-schema-palette ()
+  "The palette surface block of the document schema, or NIL while no
+read is in flight (the key is then OMITTED — the host rejects nulls).
+`selected` indexes the ITEMS vector, which is the visible window."
   (when *minibuffer-active*
-    (let* ((prompt (format nil "~a~@[  ~a~]" *minibuffer-prompt* *minibuffer-error*))
-           (rows (minibuffer-visible-candidates)))
-      `((("kind" . "section") ("text" . ,prompt))
-        (("kind" . "search-box") ("id" . "minibuffer")
-         ("placeholder" . ,*minibuffer-prompt*) ("value" . ,*minibuffer-input*)
-         ("action" . "minibuffer-accept"))
-        ,@(loop for (i cand) in rows
-                collect `(("kind" . "list-row") ("id" . ,cand) ("title" . ,cand)
-                          ("selected" . ,(json-bool (= i *minibuffer-selected*)))
-                          ("row_action" . "minibuffer-select")))))))
+    (let* ((window (minibuffer-visible-window))
+           (items (loop for i in window
+                        collect `(("id" . ,(nth i *minibuffer-candidates*))
+                                  ("label" . ,(nth i *minibuffer-candidates*))))))
+      `(("query" . ,*minibuffer-input*)
+        ("prompt" . ,(string-right-trim '(#\Space) *minibuffer-prompt*))
+        ("selected" . ,(if window
+                           (position *minibuffer-selected* window :test #'=)
+                           0))
+        ("items" . ,(apply #'vector (or items nil)))
+        ;; The empty-list voice: the last refusal when there is one
+        ;; (phase 1 RET on a non-command — Emacs's [No match]), the
+        ;; host's own "No matches" otherwise.
+        ("empty" . ,(or *minibuffer-error* ""))))))

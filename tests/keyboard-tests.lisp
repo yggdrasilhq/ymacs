@@ -188,19 +188,105 @@ world")))
         (kill-buffer (buffer-id *current-buffer*))
         (setf *current-buffer* buf))))
 
-  (test "a clicked candidate accepts through minibuffer-select"
+  (test "a clicked candidate accepts through palette-accept"
     (let* ((buf (make-new-buffer "*kt*" "")))
       (setf *current-buffer* buf *test-counter* 0)
       (reset-key-sequence)
       (ymacs-handle-key "M-x")
-      ;; GUI shape: the candidate rides values.value (nested) — the
-      ;; flat-parser era read a top-level value that never exists.
+      ;; The palette surface's mouse path: the component POSTs the
+      ;; clicked row's id; the invocation carries the values.
       (let ((reply (handle-action
-                    `(("action" . "minibuffer-select")
+                    `(("action" . "palette-accept")
                       ("values" . (("value" . "test-noargs")))))))
         (assert-eq* t (cdr (assoc "ok" reply :test #'string=)))
         (assert-eq* nil *minibuffer-active*)
         (assert-eq* 1 *test-counter*))))
+
+  (test "the palette surface block rides the schema while active"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      ;; Closed: the key is ABSENT, never null (the host rejects nulls).
+      (assert-eq* nil (assoc "palette" (document-schema) :test #'string=))
+      (ymacs-handle-key "M-x")
+      (let ((pal (cdr (assoc "palette" (document-schema) :test #'string=))))
+        (assert-eq* t (and pal t))
+        (assert-eq* "M-x" (cdr (assoc "prompt" pal :test #'string=)))
+        (assert-eq* "" (cdr (assoc "query" pal :test #'string=)))
+        (assert-eq* 0 (cdr (assoc "selected" pal :test #'string=)))
+        ;; The M-x collection is the command names: a real interactive
+        ;; command is in it (the window shows the head of the list).
+        (assert-eq* "backward-char" (first *minibuffer-candidates*))
+        ;; The surface shows the visible WINDOW (the selected row stays
+        ;; on screen); every row carries id and label.
+        (let ((items (cdr (assoc "items" pal :test #'string=))))
+          (assert-eq* t (plusp (length items)))
+          (assert-eq* t (every (lambda (row)
+                                 (and (cdr (assoc "id" row :test #'string=))
+                                      (cdr (assoc "label" row :test #'string=))))
+                               items))))
+      (minibuffer-abort)
+      (assert-eq* nil (assoc "palette" (document-schema) :test #'string=))))
+
+  (test "palette-move wraps the selection both ways"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (handle-action `(("action" . "palette-move") ("values" . (("value" . "first")))))
+      (assert-eq* 0 *minibuffer-selected*)
+      (handle-action `(("action" . "palette-move") ("values" . (("value" . "previous")))))
+      ;; previous from 0 WRAPS to the last candidate
+      (assert-eq* (1- (length *minibuffer-candidates*)) *minibuffer-selected*)
+      (handle-action `(("action" . "palette-move") ("values" . (("value" . "next")))))
+      (assert-eq* 0 *minibuffer-selected*)
+      (handle-action `(("action" . "palette-move") ("values" . (("value" . "last")))))
+      (assert-eq* (1- (length *minibuffer-candidates*)) *minibuffer-selected*)
+      (minibuffer-abort)))
+
+  (test "palette-dismiss is C-g by mouse"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (assert-eq* t *minibuffer-active*)
+      (handle-action `(("action" . "palette-dismiss") ("values" . ())))
+      (assert-eq* nil *minibuffer-active*)))
+
+  (test "a lenient read offers the raw input (C-x b creates buffers)"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "C-x")
+      (ymacs-handle-key "C-b")
+      (assert-eq* t *minibuffer-active*)
+      (dolist (ch (coerce "no-such-buffer" 'list))
+        (ymacs-handle-key (string ch)))
+      ;; Phase 2 is lenient: the typed text is a candidate (the LAST one).
+      (assert-eq* "no-such-buffer"
+                  (first (last *minibuffer-candidates*)))
+      (assert-eq* 0 *minibuffer-selected*)
+      (ymacs-handle-key "RET")
+      ;; The read FINISHED with the raw text as the collected value
+      ;; (whether the command then uses it is the command's business —
+      ;; switch-to-buffer v0 refuses unknown names, find-file opens).
+      (assert-eq* nil *minibuffer-active*)))
+
+  (test "the strict read refuses a non-command (no synthetic row)"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (dolist (ch (coerce "zzz-no-command" 'list))
+        (ymacs-handle-key (string ch)))
+      ;; Phase 1 is strict: what was typed is NOT offered as a candidate.
+      (assert-eq* nil (member "zzz-no-command" *minibuffer-candidates*
+                              :test #'string=))
+      (ymacs-handle-key "RET")
+      ;; [No match]: the read STAYS open with the refusal rendered.
+      (assert-eq* t *minibuffer-active*)
+      (assert-eq* t (and *minibuffer-error* t))
+      (minibuffer-abort)))
 
   (test "C-u sets a numeric prefix"
     (let* ((buf (make-new-buffer "*kt*" "")))
