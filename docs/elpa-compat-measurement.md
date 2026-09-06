@@ -1,8 +1,10 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline: 15 of 75 corpus files load fully (vertico 6, use-package 3,
-corfu 3, compat-macs + compat-pkg + cape-keyword); 1664 of 2263 forms
-(74%) evaluate.** The first measurement (2026-09-03) put this at 1 file
+**Headline (2026-09-06, org imported): 16 of 202 corpus files load fully;
+4886 of 8897 forms (55%) evaluate. The blessed stack alone is unchanged
+at 15/75 files and 1664/2263 (74%); org — the step-6 import, borrowed
+verbatim from the same emacs-30.1 release as the manuals — lands at
+1/127 files and 3222/6634 (49%), its first honest baseline.** The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
 at. Re-run the instrument after every compat change and re-land the
@@ -16,10 +18,16 @@ versions and tar sha256s: `vendor/elpa-corpus/README.md`):
 
 seq 2.24, compat 31.0.0.2, map 3.3.1, dash 2.20.0, use-package 2.4.6,
 cape 2.9, corfu 2.14, consult 3.7, marginalia 2.12, orderless 1.7,
-tempel 1.14, vertico 2.13 — **75 top-level `.el` files**.
+tempel 1.14, vertico 2.13 — **75 top-level `.el` files** — plus **org
+9.7.11** (127 `.el` files), extracted verbatim from `lisp/org/` of
+GNU emacs-30.1, the SAME release the vendored manuals came from
+(`docs/emacs-manual/fetch-org.sh` re-pins it; generated
+`org-loaddefs.el` dropped).
 
-The question this corpus answers is the one the "~90%" claim never did:
-*can ymacs load its own blessed stack?*
+The question the blessed stack answers is the one the "~90%" claim
+never did: *can ymacs load its own blessed stack?* org answers the
+step-6 question: *how far is the real thing from loading?* — measured,
+not guessed, from the day it is imported.
 
 ## Method (`src/elpa/corpus.lisp`, `src/elpa/elisp-reader.lisp`, `src/elpa/defmacros.lisp`)
 
@@ -48,19 +56,32 @@ dynamic space), with a full sweep per package. Contract tests:
 `tests/elpa-corpus-tests.lisp` — they assert the instrument's structure
 and the definition macros' real semantics, never the corpus numbers.
 
-## Numbers (measured 2026-09-04, corpus pinned 2026-09-03)
+## Numbers (measured 2026-09-06, corpus pinned 2026-09-03 + org 2026-09-06)
 
 Raw data: `elpa-compat-measurement.json` (next to this file).
 
 | depth | files | % of corpus |
 |---|---|---|
-| 0 READ — unreadable by the Elisp reader | 1 | 1% |
-| 1 LOAD — reads, some forms fail | 59 | 79% |
-| 2 PROVIDE — fully evaluated + provided | **15** | 20% |
+| 0 READ — unreadable by the Elisp reader | 1 | 0.5% |
+| 1 LOAD — reads, some forms fail | 185 | 91.6% |
+| 2 PROVIDE — fully evaluated + provided | **16** | 7.9% |
 
-- Forms evaluated: **1664 / 2263 (73.5%)**. (The form total grew from
-  1944 because 8 previously-unreadable files now read — their forms
-  count even when some fail.)
+- Forms evaluated: **4886 / 8897 (54.9%)** overall — the blessed stack
+  **1664 / 2263 (73.5%)**, org **3222 / 6634 (48.6%)**.
+- 12 of the 13 packages measure per-package exactly as the 2026-09-04
+  wave recorded (consult 451/494, corfu 223/246, use-package 222/242,
+  vertico 221/241, cape 124/135, marginalia 144/150, tempel 70/73,
+  orderless 68/73, seq 56/61, map 50/77, compat 33/350, dash 2/121);
+  the depth-2 count is unchanged at 15 among them.
+- **org 9.7.11 (the import baseline): 127 files — exactly ONE reaches
+  depth 2, and it is the generated version stub** (`org-version.el`:
+  constants and a provide, no machinery), **and 3222/6634 forms
+  evaluate.** Read that honestly: zero real org files load yet. The failures are dominated by unmet features and
+  primitives org takes for granted in Emacs (`run-hooks`-shaped
+  defcustom machinery, `define-derived-mode`, buffer-local machinery,
+  ` easymenu`, and org's own `org-macs`/`org-compat` bootstrap depth).
+  This is the ladder org climbs in the step-6 waves; the baseline is
+  the point, not the level.
 - Depth-2 files: **`compat.el` and `compat-macs.el`** (compat's own
   bootstrap and macro definitions — the honest cascade works),
   `use-package.el`, `use-package-jump.el`, `use-package-lint.el`,

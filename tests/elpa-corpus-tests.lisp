@@ -87,11 +87,11 @@ Returns the failure notes — a null list means every form evaluated."
       (assert-eq* t (not (null failure)))
       (assert-eq* 0 (length forms))))
 
-  (test "corpus pin: 12 packages, 70+ elisp files vendored"
-    (assert-eq* 12 (length *corpus-packages*))
+  (test "corpus pin: 13 packages, 190+ elisp files vendored"
+    (assert-eq* 13 (length *corpus-packages*))
     (let ((n (reduce #'+ (mapcar (lambda (p) (length (corpus-el-files p)))
                                  *corpus-packages*))))
-      (assert-eq* t (>= n 70))))
+      (assert-eq* t (>= n 190))))
 
   (test "env: compat layer bound under Elisp names, provide/require instrumented"
     (measure-reset)

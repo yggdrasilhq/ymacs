@@ -29,7 +29,16 @@ GPL-3.0-or-later, so the vendoring is licence-clean.
 | orderless | 1.7 | 7f65412799662761e6a37d8170ce506ccb7fd236906ed94f7384ec4d65a4333c |
 | tempel | 1.14 | c375d362b9d464f4dd4486ead9e091d0fa6c337457a8e32796ece6dc46f15fd4 |
 | vertico | 2.13 | 3ac95cd8f9159670b0fbbb7a3f1cfb0c0a9f44c437e44482106837334b422c3a |
+| org | 9.7.11 (from emacs-30.1) | tar sha256: 6ccac1ae76e6af93c6de1df175e8eb406767c23da3dd2a16aa67e3124a6f138f |
 
 Re-pinning: bump the version here with the new sha256, re-run the
 instrument, and re-land the numbers — a pin bump that ships without new
 numbers violates the honesty law.
+
+**org** is the one entry NOT from GNU ELPA: it is the step-6 import
+target (`docs/spec-primitives.md`), extracted **verbatim** from the
+`lisp/org/` tree of GNU emacs-30.1 — the SAME release the vendored
+manuals came from, so the whole borrowed corpus has one provenance.
+`docs/emacs-manual/fetch-org.sh` re-pins it. Generated files
+(`org-loaddefs.el`) are dropped; `org-version.el` ships in the tree and
+stays.

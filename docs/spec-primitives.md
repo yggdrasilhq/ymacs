@@ -219,16 +219,25 @@ What the v0.1.x wave *actually* delivered (verified 2026-09-02 by audit):
   1. ~~Command layer~~ ✅ done.
   2. ~~Macro recorder at the command layer + headless replay test~~ ✅ done.
   3. ~~Key input plane~~ ✅ done (ymacs f9781d3 + yggterm 66eb48810).
-  4. ~~Command palette view~~ ✅ done (2026-09-02): the MINIBUFFER is the
-     palette — a Lisp state machine rendered as document-surface widgets
-     (prompt section + search field + selected candidate rows), fed by the
-     key plane. It is the GENERIC interactive-argument collector: any
-     command whose spec needs an unsupplied value opens it (C-x C-f
-     prompts "Find file: " exactly as Emacs); M-x is the command-name
-     read. Orderless-style filtering, C-n/C-p/arrows/RET/TAB/C-g, mouse
-     clicks accepted, C-u prefix. Palette keys mutate palette state and
-     are never recorded — the invocation through the choke point is,
-     with its collected arguments, and replays headless.
+  4. ~~Command palette view~~ ✅ done (2026-09-02, RE-DONE as a surface
+     2026-09-06): the MINIBUFFER is the palette — a Lisp state machine.
+     The 2026-09-02 build rendered it as document-surface WIDGETS above
+     the editor; the owner correction (2026-09-06): the palette is a
+     WINDOW COMPONENT like the sidebar is a surface — it now declares a
+     `palette` block in the document schema (query, prompt, selected,
+     items, empty) and the SHELL renders it with the yggui
+     CommandPalette overlay, centered over its scrim. Keyboard: the key
+     plane keeps typing/DEL/TAB/C-n/C-p/C-g/prefixes; the component's
+     own keys (arrows/Home/End/RET/ESC) arrive as palette-move/
+     palette-accept/palette-dismiss actions — one owner per chord, no
+     double-fire. Phase-2 reads are LENIENT (the raw input rides as the
+     last candidate: C-x b foo, C-x C-f paths); phase-1 M-x is STRICT
+     ([No match], the read stays open — Emacs refuses a non-command).
+     It is the GENERIC interactive-argument collector (any command
+     whose spec needs an unsupplied value opens it); orderless-style
+     filtering; C-u prefix. Palette keys mutate palette state and are
+     never recorded — the invocation through the choke point is, with
+     its collected arguments, and replays headless.
   5. ~~Frame=row (make-frame → row)~~ ✅ done (2026-09-02): make-frame
      spawns a yggterm row (`terminal new --kind shell --title ...`) and
      launches the ymacs client in it — the client attaches to the same
