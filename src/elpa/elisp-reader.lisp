@@ -115,8 +115,15 @@
   (coerce (read-delimited-list #\] stream t) 'vector))
 
 (set-macro-character #\" #'elisp-read-string nil *elisp-readtable*)
-(set-macro-character #\? #'elisp-read-char nil *elisp-readtable*)
+(set-macro-character #\? #'elisp-read-char t *elisp-readtable*)
 (set-macro-character #\[ #'elisp-read-vector t *elisp-readtable*)
+;; The comma-tolerant twin readtable: define-inline bodies contain
+;; `,x` outside a backquote (the macro splices them itself), which the
+;; standard reader rejects. On that error the form is re-read once with
+;; `,` as a constituent — commas glue to the following symbol, the form
+;; parses, and define-inline registers without its body ever evaluating.
+(defparameter *elisp-readtable-comma* (copy-readtable *elisp-readtable*))
+(set-syntax-from-char #\, #\A *elisp-readtable-comma*)
 (set-syntax-from-char #\] #\) *elisp-readtable*)
 
 ;;; --- the missing package system ---------------------------------------------
@@ -154,9 +161,12 @@ found in the Y package.', or nil when ERR is something else."
 (defun elisp-read-form (stream eof)
   "Read one form from STREAM; EOF is the eof value. Missing packages --
 and missing external symbols in them -- are created on demand and the
-form re-read (the package shim)."
+form re-read (the package shim). A stray comma outside a backquote
+(define-inline bodies) re-reads once through the comma-tolerant
+readtable."
   (let ((start (file-position stream))
-        (retries 0))
+        (retries 0)
+        (comma-error nil))
     (loop
       (handler-case (return (read stream nil eof nil))
         (reader-error (e)
@@ -167,6 +177,12 @@ form re-read (the package shim)."
             (cond (pkg
                    (unless (find-package pkg)
                      (make-package pkg :use '())))
+                  ((search "Comma not inside" (format nil "~a" e))
+                   ;; re-read once with commas as constituents
+                   (when comma-error (error e))
+                   (setf comma-error t)
+                   (let ((*readtable* *elisp-readtable-comma*))
+                     (return (read stream nil eof nil))))
                   (t
                    (multiple-value-bind (sym package)
                        (elisp-missing-external-symbol e)

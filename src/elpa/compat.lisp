@@ -116,6 +116,167 @@
 (defun elisp/featurep (feature)
   (if (member feature *elisp-features*) t nil))
 
+;;;; ---- org bootstrap wave (2026-09-07) ----------------------------------
+;;;; The primitives the org corpus hangs on, implemented against the
+;;;; elisp value store — shipped compat, never measurement fakes.
+
+(defun elisp/make-sparse-keymap (&optional _first)
+  (declare (ignore _first))
+  (elisp/make-keymap))
+
+(defun elisp/make-obsolete (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/make-obsolete-variable (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/defvaralias (alias base &optional _doc)
+  (declare (ignore _doc))
+  ;; the alias reads through the base var's store slot; a value the base
+  ;; already has is copied once (write-through indirection is future work)
+  (let ((v (elisp-get (string-downcase (princ-to-string base)))))
+    (when v (elisp-def (string-downcase (princ-to-string alias)) v)))
+  nil)
+
+(defun elisp/getenv (name)
+  (let ((s (and (find-package :sb-posix)
+                (find-symbol (string :posix-getenv) (find-package :sb-posix)))))
+    (when s (funcall s name))))
+
+(defun elisp/executable-find (program &optional _remote)
+  (declare (ignore _remote))
+  (let ((path (elisp/getenv "PATH"))
+        (needle (if (pathnamep program) (namestring program) program)))
+    (when path
+      (let ((found nil))
+        (dolist (dir (split-sequence-colon path))
+          (when (and (null found)
+                     (probe-file (merge-pathnames
+                                  needle
+                                  (make-pathname :directory (append (pathname-directory (truename "/")) (list dir))))))
+            (setf found (merge-pathnames needle (make-pathname :directory (append (pathname-directory (truename "/")) (list dir)))))))
+        found))))
+
+(defun split-sequence-colon (s)
+  (loop for start = 0 then (1+ end)
+        for end = (position #\: s :start start)
+        collect (subseq s start (or end (length s)))
+        while end))
+
+(defun elisp-version-parts (s)
+  (mapcar (lambda (p) (or (parse-integer p :junk-allowed t) 0))
+          (split-sequence-colon
+           (substitute #\: #\. (string-upcase s)))))
+
+(defun elisp/version< (a b)
+  (let ((pa (elisp-version-parts a)) (pb (elisp-version-parts b)))
+    (loop for x in pa
+          for y = (or (pop pb) 0)
+          do (cond ((< x y) (return-from elisp/version< t))
+                   ((> x y) (return-from elisp/version< nil))))
+    nil))
+
+(defun elisp/version<= (a b)
+  (or (elisp/version< a b)
+      (not (elisp/version< b a))))
+
+(defun elisp/subr-arity (fn)
+  ;; (MIN . MAX); MAX is :many when the function takes &rest/&key.
+  ;; sb-introspect is resolved at RUNTIME: the shipped image compiles on
+  ;; hosts where that package is not loaded (same pattern as getenv).
+  (let ((il (and (find-package :sb-introspect)
+                 (find-symbol (string :function-lambda-list)
+                              (find-package :sb-introspect)))))
+    (if (and il (functionp fn))
+        (ignore-errors
+          (let ((ll (funcall il fn)))
+            (let ((min 0) (many nil))
+              (dolist (x ll)
+                (typecase x
+                  ((or null (member &optional)) nil)
+                  ((member &rest &body &key &aux) (setf many t))
+                  (symbol (incf min))))
+              (cons min (if many :many min)))))
+        (cons 0 :many))))
+
+(defun elisp/regexp-quote (s)
+  (with-output-to-string (out)
+    (loop for ch across (string s)
+          when (find ch "*+?[^$\\.()|{}") do (write-char #\\ out)
+          do (write-char ch out))))
+
+(defun elisp/regexp-opt (strings &optional _paren)
+  (declare (ignore _paren))
+  (let ((uniq (remove-duplicates (mapcar #'string strings) :test #'string=)))
+    (concatenate 'string "\\(?:"
+                 (format nil "~{~a~^\\|~}" (mapcar #'elisp/regexp-quote uniq))
+                 "\\)")))
+
+(defun elisp/make-overlay (&rest _)
+  (declare (ignore _))
+  (list 'elisp-overlay))
+
+(defun elisp/overlay-put (o &rest _)
+  (declare (ignore _))
+  o)
+
+(defun elisp/delete-overlay (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/move-overlay (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/easy-menu-add-item (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/kbd (keys)
+  ;; v0: the key-vector representation is internal; define-key addresses
+  ;; bindings by the chord string itself, so KBD returns it unchanged.
+  keys)
+
+(defun elisp/set-keymap-parent (map parent)
+  (when (and (elisp-keymap-p map) (or (null parent) (elisp-keymap-p parent)))
+    (setf (elisp-keymap-parent map) parent))
+  map)
+
+(defun elisp/make-marker (&rest _)
+  (declare (ignore _))
+  (list 'marker 0 nil))
+
+(defun elisp/expand-file-name (name &optional _default)
+  (if (and (plusp (length name)) (eql (char name 0) #\~))
+      (merge-pathnames (subseq name 1) (user-homedir-pathname))
+      (merge-pathnames name (truename "."))))
+
+(defun elisp/emacs-version (&optional _arg)
+  "GNU Emacs 30.1 (ymacs on libyggterm)")
+
+;; org-version.el is the GENERATED package header: Emacs ships it preloaded,
+;; so the corpus sweep pre-provides its two constants (pinned in
+;; vendor/elpa-corpus/README.md — org 9.7.11 from emacs-30.1).
+(defun elisp/org-release () "9.7.11")
+(defun elisp/org-git-version () "release_9.7.11")
+
+(defun elisp/org-link-set-parameter (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/org-link-set-parameters (type &rest params)
+  (declare (ignore params))
+  type)
+
+(defun elisp/org-cite-register-processor (&rest _)
+  (declare (ignore _))
+  nil)
+
+(defun elisp/user-error (format &rest args)
+  (error "user-error: ~a" (apply #'format nil format args)))
+
 ;;; ---- defcustom / use-package glue -------------------------------------
 
 (defmacro elisp/defcustom (name value doc &key type group)
