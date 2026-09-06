@@ -30,14 +30,20 @@
 
 (defun info-parse (text)
   "Returns (VALUES ORDER NODES): ORDER is the node names in file order
-(first is the entry node), NODES a name -> info-node table. Nodes are
-separated by the ^_ control character; each header carries Node: NAME."
+(first is the entry node), NODES a name -> info-node table.
+
+The .info layout makeinfo writes: every node begins at a ^_ separator
+on a line of its own; the header line (`File: ...,  Node: NAME,  ...')
+follows it, and the node's text runs to the NEXT separator. Sections
+without a `File:' header line (the tag table, the end marker) are not
+nodes. Text before the first separator is the preamble — not a node."
   (let ((nodes (make-hash-table :test 'equal))
         (order nil)
         (starts nil)
+        (sep *info-sep*)
         (len (length text)))
     (loop for i from 0 below len
-          when (char= (char text i) (*info-sep*))
+          when (char= (char text i) sep)
           do (push i starts))
     (setf starts (nreverse starts))
     (if (null starts)
@@ -45,24 +51,26 @@ separated by the ^_ control character; each header carries Node: NAME."
         (progn
           (setf (gethash "(manual)" nodes)
                 (make-info-node :name "(manual)" :text text))
-          (setf (gethash "(manual)" nodes)
-                (make-info-node :name "(manual)" :text text))
           (values (list "(manual)") nodes))
         (let ((entries nil))
           (dolist (s starts)
-            (let* ((nl (or (position #\Newline text :start s) len))
-                   (header (subseq text s nl))
-                   (body-start (let ((p (position (*info-sep*) text :start (1+ s))))
-                                 (or p len)))
-                   (body-end (or (position (*info-sep*) text :start (1+ body-start))
-                                 len))
-                   (name (let ((n (search "Node: " header)))
-                           (if n
-                               (let ((comma (position #\, header :start (+ n 6))))
-                                 (subseq header (+ n 6) (or comma (length header))))
-                               (format nil "node-~a" s)))))
-              (push (cons name (subseq text body-start body-end)) entries)
-              (push name order)))
+            ;; The separator ends its own line; the header follows.
+            (let* ((line-start (1+ s))
+                   (line-start (if (and (< line-start len)
+                                        (char= (char text line-start) #\Newline))
+                                   (1+ line-start)
+                                   line-start))
+                   (line-end (or (position #\Newline text :start line-start) len))
+                   (header (subseq text line-start line-end))
+                   (n (search "Node: " header)))
+              (when n
+                (let* ((comma (position #\, header :start (+ n 6)))
+                       (name (subseq header (+ n 6) (or comma (length header))))
+                       (body-start (if (< line-end len) (1+ line-end) len))
+                       (body-end (let ((next (position sep text :start (1+ s))))
+                                   (or next len))))
+                  (push (cons name (subseq text body-start body-end)) entries)
+                  (push name order)))))
           (setf order (nreverse order))
           (dolist (e entries)
             (setf (gethash (car e) nodes)
