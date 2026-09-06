@@ -20,9 +20,12 @@
 
 (defparameter *corpus-packages*
   '("seq" "compat" "map" "dash" "use-package" "cape" "corfu" "consult"
-    "marginalia" "orderless" "tempel" "vertico")
+    "marginalia" "orderless" "tempel" "vertico" "org")
   "Measurement order: foundation libraries first, so require pulls a
-   dependency from its own vendored slot instead of mid-corpus surprise.")
+   dependency from its own vendored slot instead of mid-corpus surprise.
+   org rides last and stands alone: it is the step-6 IMPORT target
+   (borrowed verbatim from the same emacs release as the manuals), not
+   a dependency of the blessed stack.")
 
 (defun corpus-root ()
   (or (probe-file "vendor/elpa-corpus/")
