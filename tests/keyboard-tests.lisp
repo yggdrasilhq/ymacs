@@ -205,6 +205,7 @@ world")))
   (test "the palette surface block rides the schema while active"
     (let* ((buf (make-new-buffer "*kt*" "")))
       (setf *current-buffer* buf)
+      (clrhash *command-last-run*)
       (reset-key-sequence)
       ;; Closed: the key is ABSENT, never null (the host rejects nulls).
       (assert-eq* nil (assoc "palette" (document-schema) :test #'string=))
@@ -286,6 +287,69 @@ world")))
       ;; [No match]: the read STAYS open with the refusal rendered.
       (assert-eq* t *minibuffer-active*)
       (assert-eq* t (and *minibuffer-error* t))
+      (minibuffer-abort)))
+
+  (test "recency: the last M-x selection ranks first"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf *test-counter* 0)
+      ;; command-tests scrubs its fixtures' registrations; this test needs
+      ;; the command in the M-x collection again.
+      (declare-interactive 'test-noargs "")
+      (clrhash *command-last-run*)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (handle-action `(("action" . "palette-accept")
+                       ("values" . (("value" . "test-noargs")))))
+      ;; the read ran test-noargs; reopen M-x: it now heads the collection
+      (ymacs-handle-key "M-x")
+      (assert-eq* "test-noargs" (first *minibuffer-candidates*))
+      (minibuffer-abort)))
+
+  (test "completion: the top candidate extends what was typed"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (dolist (ch (coerce "find-f" 'list))
+        (ymacs-handle-key (string ch)))
+      (let ((pal (cdr (assoc "palette" (document-schema) :test #'string=))))
+        (assert-eq* "find-file" (cdr (assoc "completion" pal :test #'string=)))
+        (assert-eq* 6 (cdr (assoc "completion_typed_len" pal :test #'string=))))
+      ;; TAB takes the completion: the query becomes the completed name
+      (ymacs-handle-key "TAB")
+      (assert-eq* "find-file" *minibuffer-input*)
+      (minibuffer-abort)))
+
+  (test "hints: bound commands carry their key binding at the right edge"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (dolist (ch (coerce "find-file" 'list))
+        (ymacs-handle-key (string ch)))
+      (let* ((pal (cdr (assoc "palette" (document-schema) :test #'string=)))
+             (items (cdr (assoc "items" pal :test #'string=)))
+             (row (find "find-file" items
+                        :key (lambda (w) (cdr (assoc "id" w :test #'string=)))
+                        :test #'string=)))
+        (assert-eq* t (and row t))
+        (assert-eq* "C-x C-f" (cdr (assoc "hint" row :test #'string=))))
+      (minibuffer-abort)))
+
+  (test "details: documented commands carry their first doc line"
+    (let* ((buf (make-new-buffer "*kt*" "")))
+      (setf *current-buffer* buf)
+      (reset-key-sequence)
+      (ymacs-handle-key "M-x")
+      (dolist (ch (coerce "find-file" 'list))
+        (ymacs-handle-key (string ch)))
+      (let* ((pal (cdr (assoc "palette" (document-schema) :test #'string=)))
+             (items (cdr (assoc "items" pal :test #'string=)))
+             (row (find "find-file" items
+                        :key (lambda (w) (cdr (assoc "id" w :test #'string=)))
+                        :test #'string=)))
+        (assert-eq* t (and row t))
+        (assert-eq* t (plusp (length (cdr (assoc "detail" row :test #'string=))))))
       (minibuffer-abort)))
 
   (test "C-u sets a numeric prefix"
