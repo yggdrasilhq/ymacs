@@ -460,12 +460,10 @@ still validate. Reachable book: override-or-default, strictly."
           status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)))
 
 (defun document-schema-widgets (base)
-  "The palette's widgets FIRST while a read is in flight (its bar and
-candidate rows render above the editor — the Emacs shape), BASE after."
-  (let ((mb (minibuffer-schema-widgets)))
-    (if mb
-        (coerce (append mb (coerce base 'list)) 'vector)
-        base)))
+  "BASE alone: the palette is a SURFACE now (spec-primitives S3, the
+yggui command palette), not a stack of widgets above the editor. Its
+state rides the document schema through `document-schema-pair'."
+  base)
 
 (defun tab-bar-schema-tabs ()
   "The strip's tabs as the wire vector, in display order."
@@ -513,7 +511,7 @@ signal."
      (ribbon-bar-widget buf)
      `(("kind" . "label") ("text" . ,label-text)))))
 
-(defun document-schema ()
+(defun document-schema-base ()
   ;; While settings are open the settings document OWNS the viewport
   ;; (M-x settings); the shell keeps native key handling there — the
   ;; widgets are the interaction, the rail is the section column.
@@ -551,6 +549,17 @@ signal."
                              (vector
                               `(("kind" . "label") ("text" . "ymacs — GNU Emacs on libyggterm"))
                               `(("kind" . "label") ("muted" . t) ("text" . "No buffer open. Use M-x open-file or the Buffers pane."))))))))))
+
+(defun document-schema-pair ()
+  "The (\"palette\" . <block>) wire pair while a read is in flight, or
+NIL — the key is ABSENT, never null, when the palette is closed (the
+host rejects nulls: the 2026-09-04 ribbon lesson)."
+  (let ((pal (minibuffer-schema-palette)))
+    (when pal (list (cons "palette" pal)))))
+
+(defun document-schema ()
+  "The live document schema: BASE plus the palette surface key."
+  (append (document-schema-base) (document-schema-pair)))
 
 (defun buffers-schema ()
   (let ((widgets nil))
@@ -706,32 +715,34 @@ signal."
        ;; dispatched through the command layer, fresh schema in the reply.
        (let ((chord (cdr (assoc "key" values-alist :test #'string=))))
          (ymacs-handle-key (or chord ""))))
-      ((and action (string= action "minibuffer-accept"))
-       ;; RET in the palette's own field.
+      ((and action (string= action "palette-query"))
+       ;; The palette field is a VIEW of *minibuffer-input*; its text
+       ;; edits arrive as chords through the key plane. This arm is the
+       ;; host-side escape hatch: a host that composes the query itself
+       ;; (automation, tests) sends it verbatim.
        (when *minibuffer-active*
-         (let ((draft (cdr (assoc "minibuffer" values-alist :test #'string=))))
-           (when draft
-             (setf *minibuffer-input* draft)
-             (minibuffer-refilter))))
-       (minibuffer-accept)
+         (let ((text (or (cdr (assoc "value" values-alist :test #'string=)) "")))
+           (setf *minibuffer-input* text)
+           (minibuffer-refilter)))
        (key-plane-reply))
-      ((and action (string= action "minibuffer-select"))
-       ;; A clicked candidate: select it by id, then accept. Mouse gestures
-       ;; are never recorded — the invocation carries the values.
+      ((and action (string= action "palette-move"))
+       ;; The component's arrow keys: next/previous/first/last, wrapping.
+       ;; Never recorded — the selection is view state (the macro law).
        (when *minibuffer-active*
-         (let ((cand (cdr (assoc "value" values-alist :test #'string=))))
-           (let ((pos (position cand *minibuffer-candidates* :test #'string=)))
-             (when pos (setf *minibuffer-selected* pos)))
-           (when cand
-             (setf *minibuffer-input* cand)
-             (minibuffer-refilter))
-           (minibuffer-accept)))
+         (minibuffer-palette-move
+          (or (cdr (assoc "value" values-alist :test #'string=)) "")))
        (key-plane-reply))
-      ((and *minibuffer-active*
-            (assoc "minibuffer" values-alist :test #'string=))
-       ;; Draft sync from the palette field (native typing fallback).
-       (setf *minibuffer-input* (cdr (assoc "minibuffer" values-alist :test #'string=)))
-       (minibuffer-refilter)
+      ((and action (string= action "palette-accept"))
+       ;; A clicked row, or the component's Enter carrying the selected
+       ;; row's id. Mouse gestures are never recorded — the invocation
+       ;; carries the values, exactly like the key plane's RET.
+       (when *minibuffer-active*
+         (minibuffer-palette-accept-id
+          (or (cdr (assoc "value" values-alist :test #'string=)) "")))
+       (key-plane-reply))
+      ((and action (string= action "palette-dismiss"))
+       ;; The scrim click: C-g by mouse.
+       (when *minibuffer-active* (minibuffer-abort))
        (key-plane-reply))
       ((and action (string= action "eval"))
        ;; The headless verb: ymacs --eval posts here (main.lisp CLI).

@@ -78,13 +78,11 @@
     (let ((*sidebar-visible* nil))
       (sch-assert-bools-strict (sch-json (sidebar-pane-schema)) "pane-hidden")))
 
-  (test "palette rows validate while the minibuffer is active"
+  (test "the palette surface block validates while the minibuffer is active"
     (minibuffer-start "M-x " '("save-buffer" "sidebar"))
     (unwind-protect
          (sch-assert-bools-strict
-          (sch-json `(("title" . "palette")
-                      ("widgets" . ,(coerce (minibuffer-schema-widgets)
-                                            'vector))))
+          (sch-json (minibuffer-schema-palette))
           "palette")
       (minibuffer-abort)))
 
