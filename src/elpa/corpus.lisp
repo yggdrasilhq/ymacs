@@ -20,7 +20,8 @@
 
 (defparameter *corpus-packages*
   '("seq" "compat" "map" "dash" "use-package" "cape" "corfu" "consult"
-    "marginalia" "orderless" "tempel" "vertico" "pcomplete" "org")
+    "marginalia" "orderless" "tempel" "vertico" "format-spec" "ring"
+    "avl-tree" "inline" "tabulated-list" "pcomplete" "org")
   "Measurement order: foundation libraries first, so require pulls a
    dependency from its own vendored slot instead of mid-corpus surprise.
    org rides last and stands alone: it is the step-6 IMPORT target
@@ -92,7 +93,11 @@
     (org-link-set-parameter elisp/org-link-set-parameter)
     (org-link-set-parameters elisp/org-link-set-parameters)
     (org-cite-register-processor elisp/org-cite-register-processor)
-    (intern-soft elisp/intern-soft)))
+    (intern-soft elisp/intern-soft)
+    (delq elisp/delq) (remq elisp/remq)
+    (copy-sequence elisp/copy-sequence) (sequencep elisp/sequencep)
+    (downcase elisp/downcase) (upcase elisp/upcase)
+    (next-line elisp/next-line) (previous-line elisp/previous-line)))
 
 (defparameter *measure-macro-bindings*
   '((defcustom elisp/defcustom) (use-package ymacs-use-package)
@@ -106,6 +111,9 @@
     (cl-return-from elisp/cl-return-from) (cl-tagbody elisp/cl-tagbody)
     (cl-progv elisp/cl-progv)
     (define-minor-mode elisp/define-minor-mode)
+    (define-derived-mode elisp/define-derived-mode)
+    (define-inline elisp/define-inline)
+    (interactive elisp/interactive)
     (defvar-keymap elisp/defvar-keymap)
     (autoload elisp/autoload)
     (eval-when-compile elisp/eval-when-compile)
@@ -154,9 +162,13 @@
     (cl-gensym gensym) (cl-parse-integer parse-integer)
     (cl-digit-char-p digit-char-p) (cl-concatenate concatenate)
     (cl-plusp plusp) (cl-minusp minusp) (cl-zerop zerop)
-    (cl-evenp evenp) (cl-oddp oddp) (cl-min min) (cl-max max))
-  "cl-lib names ARE CL here — CL is ymacs's implementation of cl-lib —
-   so cl-incf is cl:incf and cl-loop is cl:loop. Aliases, not fakes.")
+    (cl-evenp evenp) (cl-oddp oddp) (cl-min min) (cl-max max)
+    (cl-defstruct defstruct) (cl-deftype deftype))
+  "cl-lib names ARE CL here — CL is ymacs's cl-lib implementation —
+   so cl-incf is cl:incf and cl-loop is cl:loop. Aliases, not fakes.
+   cl-defstruct is the same doctrine: the elisp struct syntax used by
+   the corpus (bare slots, (:copier nil)) IS valid cl:defstruct, and
+   the keyword constructor lands under the elisp make-<name> name.")
 
 (defparameter *measure-features* nil)
 
@@ -194,11 +206,20 @@
           (setf (macro-function (measure-elisp-symbol (string (first b)) el))
                 (macro-function sym)))))
     (measure-bind-cl-aliases el)
-    ;; Emacs-predefined variables the corpus references bare
+    ;; Emacs-predefined variables the corpus references bare. The intern
+    ;; must UPCASE: CL's intern does not case-convert, the corpus reader
+    ;; produces uppercase symbols, and a lowercase intern would bind a
+    ;; DIFFERENT symbol (the pre-2026-09-08 latent bug — nothing failed
+    ;; until ox.el's bare emacs-version reference).
     (dolist (v (list (cons "user-init-file" nil)
                      (cons "user-emacs-directory" "~/.emacs.d/")
-                     (cons "load-file-name" nil)))
-      (let ((sym (measure-elisp-symbol (car v) el)))
+                     (cons "load-file-name" nil)
+                     ;; elisp has BOTH a function and a variable named
+                     ;; emacs-version; the variable is the release string
+                     (cons "emacs-version" "30.1")
+                     ;; Emacs predefines the load search suffixes
+                     (cons "load-suffixes" '(".el" ".elc"))))
+      (let ((sym (measure-elisp-symbol (string-upcase (car v)) el)))
         (proclaim `(special ,sym))
         (setf (symbol-value sym) (cdr v))))
     ;; cl-lib is provided by the shipped image (CL itself is the cl-lib

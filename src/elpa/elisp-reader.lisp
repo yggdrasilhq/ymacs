@@ -208,9 +208,15 @@ readtable."
                    (unless (find-package pkg)
                      (make-package pkg :use '())))
                   ((search "Comma not inside" (format nil "~a" e))
-                   ;; re-read once with commas as constituents
+                   ;; re-read once with commas as constituents. The
+                   ;; failed read consumed up to the stray comma, so
+                   ;; the retry MUST rewind to the form start —
+                   ;; re-reading mid-form left `))))` strays and the
+                   ;; file died on "unmatched close parenthesis"
+                   ;; (org-element-ast.el, fixed 2026-09-08).
                    (when comma-error (error e))
                    (setf comma-error t)
+                   (file-position stream start)
                    (let ((*readtable* *elisp-readtable-comma*))
                      (return (read stream nil eof nil))))
                   (t
