@@ -21,7 +21,8 @@
 (defparameter *corpus-packages*
   '("seq" "compat" "map" "dash" "use-package" "cape" "corfu" "consult"
     "marginalia" "orderless" "tempel" "vertico" "format-spec" "ring"
-    "avl-tree" "inline" "macroexp" "tabulated-list" "pcomplete" "org")
+    "avl-tree" "inline" "macroexp" "tabulated-list" "ansi-color"
+    "ansi-osc" "comint" "pcomplete" "org")
   "Measurement order: foundation libraries first, so require pulls a
    dependency from its own vendored slot instead of mid-corpus surprise.
    org rides last and stands alone: it is the step-6 IMPORT target
@@ -94,7 +95,7 @@
     (org-link-set-parameters elisp/org-link-set-parameters)
     (org-cite-register-processor elisp/org-cite-register-processor)
     (intern-soft elisp/intern-soft)
-    (delq elisp/delq) (remq elisp/remq)
+    (delq elisp/delq) (remq elisp/remq) (memq elisp/memq)
     (copy-sequence elisp/copy-sequence) (sequencep elisp/sequencep)
     (downcase elisp/downcase) (upcase elisp/upcase)
     (next-line elisp/next-line) (previous-line elisp/previous-line)

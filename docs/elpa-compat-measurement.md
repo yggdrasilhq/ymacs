@@ -1,12 +1,12 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-08, org ladder wave IV): 82 of 209 corpus files
-load fully; 10701 of 12516 forms (85.5%) evaluate. org reached 57/127
-files (8722/9714, 89.7%) — org-list now READS whole (an elisp `##`
-dispatch token) — and org-element-ast's deferred-value struct
-evaluates (elisp cl-defstruct on top of cl:defstruct). macroexp.el and
-five more emacs-30.1 vendors landed; the elisp macroexpand-1/macroexpand
-redefinitions no longer clobber CL's own (pre-shadowed).**
+**Headline (2026-09-08, org ladder wave V): 85 of 212 corpus files
+load fully; 11047 of 12870 forms (85.8%) evaluate. org reached 60/127
+files (8725/9714, 89.8%). The comint chain vendored (comint 253/263,
+ansi-color 69/71, ansi-osc 18/20) — the elisp `#&` bool-vector
+literal got a dispatch reader and pcomplete climbed to 101/108.
+Depth-0 class is down to three files, and the mid-token-colon class
+is measured to want a real elisp tokenizer.**
 The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
@@ -60,20 +60,28 @@ dynamic space), with a full sweep per package. Contract tests:
 `tests/elpa-corpus-tests.lisp` — they assert the instrument's structure
 and the definition macros' real semantics, never the corpus numbers.
 
-## Numbers (measured 2026-09-08 ladder wave IV, corpus + macroexp vendor)
+## Numbers (measured 2026-09-08 ladder wave V, corpus + comint chain)
 
 Raw data: `elpa-compat-measurement.json` (next to this file).
 
 | depth | files | % of corpus |
 |---|---|---|
 | 0 READ — unreadable by the Elisp reader | 3 | 1.4% |
-| 1 LOAD — reads, some forms fail | 124 | 59.3% |
-| 2 PROVIDE — fully evaluated + provided | **82** | 39.2% |
+| 1 LOAD — reads, some forms fail | 124 | 58.5% |
+| 2 PROVIDE — fully evaluated + provided | **85** | 40.1% |
 
-- Forms evaluated: **10701 / 12516 (85.5%)** overall — the blessed stack
-  **1686 / 2489 (67.7%)**, org **8722 / 9714 (89.7%)**, pcomplete
-  **98 / 108** (unmet `comint` chain), tabulated-list 57/62,
-  avl-tree 42/45, macroexp 44/46, format-spec/ring/inline all PROVIDE.
+- Forms evaluated: **11047 / 12870 (85.8%)** overall — the blessed stack
+  **1686 / 2489 (67.7%)**, org **8725 / 9714 (89.8%)**, comint
+  **253 / 263**, pcomplete **101 / 108**, ansi-color 69/71,
+  ansi-osc 18/20, tabulated-list 57/62, avl-tree 42/45,
+  macroexp 44/46, format-spec/ring/inline all PROVIDE.
+- **org ladder wave V (2026-09-08): the comint chain** —
+  `comint`, `ansi-color`, `ansi-osc` vendored (emacs-30.1; corpus 23
+  packages / 212 files). ansi-color exposes the `#&` bool-vector
+  literal (`#&8"\0"`) — now a dispatch reader unpacking to a real bit
+  vector; `memq` landed; pcomplete climbed 98→101/108 and three more
+  org files provide (57→60/127).
+
 - **org ladder wave IV (2026-09-08): the cl-defstruct rung** —
   elisp `cl-defstruct` now rides on `cl:defstruct` (the cl-lib
   doctrine) with two elisp divergences transformed: `(:constructor
@@ -251,8 +259,9 @@ dependency chain (comint→ring/ansi-color) is not vendored yet.
 - **org-table / org-duration / dash** — the three depth-0 files
   (causes above). The elisp tokenizer is the structural fix for the
   colon class; dash/org-table want death-offset bisects.
-- **pcomplete 98/108** — the comint chain (ring is provided now;
-  comint needs ansi-color/ansi-osc too).
+- **pcomplete 101/108, comint 253/263** — the chain is vendored;
+  remaining are comint's own eval gaps (process/pty primitives the
+  v0 compat layer does not model).
 - **ox-html 206/209, ox-publish 58/59, ox-texinfo 116/117** —
   one-to-four forms each; `org-export-with-latex` misses are the
   alphabetical load-order artifact (ox-latex defines it after

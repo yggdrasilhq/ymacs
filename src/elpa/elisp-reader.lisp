@@ -168,6 +168,29 @@
                                 (declare (ignore stream sub-char numarg))
                                 '|##|)
                               *elisp-readtable*)
+;; elisp bool-vector literal #&[SIZE]"STRING" (ansi-color's init data)
+;; — v0 unpacks to a simple bit vector, MSB-first per byte (the elisp
+;; packed representation). The bool-vector function family is future
+;; work; the literal only needs to read to a faithful object.
+(set-dispatch-macro-character #\# #\&
+                              (lambda (stream sub-char numarg)
+                                (declare (ignore sub-char numarg))
+                                (let ((digits (loop for c = (peek-char nil stream nil nil)
+                                                    while (and c (digit-char-p c))
+                                                    collect (read-char stream))))
+                                  (let* ((size (when digits
+                                                 (parse-integer (coerce digits 'string))))
+                                         (str (read stream t))
+                                         (bytes (map 'list #'char-code str))
+                                         (n (or size (* 8 (length bytes))))
+                                         (bits (make-array n :element-type 'bit
+                                                           :initial-element 0)))
+                                    (loop for bi below n
+                                          for byte = (nth (floor bi 8) bytes)
+                                          when (logbitp (- 7 (mod bi 8)) byte)
+                                            do (setf (aref bits bi) 1))
+                                    bits)))
+                              *elisp-readtable*)
 
 ;;; --- the missing package system ---------------------------------------------
 ;;;;
