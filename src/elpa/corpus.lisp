@@ -20,7 +20,7 @@
 
 (defparameter *corpus-packages*
   '("seq" "compat" "map" "dash" "use-package" "cape" "corfu" "consult"
-    "marginalia" "orderless" "tempel" "vertico" "org")
+    "marginalia" "orderless" "tempel" "vertico" "pcomplete" "org")
   "Measurement order: foundation libraries first, so require pulls a
    dependency from its own vendored slot instead of mid-corpus surprise.
    org rides last and stands alone: it is the step-6 IMPORT target
@@ -91,7 +91,8 @@
     (org-release elisp/org-release) (org-git-version elisp/org-git-version)
     (org-link-set-parameter elisp/org-link-set-parameter)
     (org-link-set-parameters elisp/org-link-set-parameters)
-    (org-cite-register-processor elisp/org-cite-register-processor)))
+    (org-cite-register-processor elisp/org-cite-register-processor)
+    (intern-soft elisp/intern-soft)))
 
 (defparameter *measure-macro-bindings*
   '((defcustom elisp/defcustom) (use-package ymacs-use-package)

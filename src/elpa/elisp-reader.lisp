@@ -91,7 +91,15 @@
       (let ((c (read-char stream)))
         (cond ((char= c #\") (return out))
               ((char= c #\\)
-               (vector-push-extend (code-char (elisp-escape-code stream)) out))
+               ;; Emacs strings carry 22-bit chars; CL strings stop at
+               ;; #x10FFFF — and SBCL's code-char SIGNALS past the impl
+               ;; range rather than returning NIL. Out-of-range escapes
+               ;; (pcomplete's \x3FFF7F) land as U+FFFD, guarded BEFORE
+               ;; the call — a documented v0 divergence: corpus data,
+               ;; never compared (the modifier-bit stance).
+               (let ((code (elisp-escape-code stream)))
+                 (vector-push-extend
+                  (if (<= code #x10FFFF) (code-char code) #\U+FFFD) out)))
               (t (vector-push-extend c out)))))))
 
 ;;; --- character literal ----------------------------------------------------

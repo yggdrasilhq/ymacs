@@ -259,6 +259,14 @@
 ;; org-version.el is the GENERATED package header: Emacs ships it preloaded,
 ;; so the corpus sweep pre-provides its two constants (pinned in
 ;; vendor/elpa-corpus/README.md — org 9.7.11 from emacs-30.1).
+(defun elisp/intern-soft (name)
+  "Emacs: return the symbol NAME names ONLY if it is already interned;
+a symbol argument passes through, a miss is nil — never interns. The
+elisp symbol domain is :ymacs-elisp (see the value-domain header)."
+  (if (symbolp name)
+      name
+      (find-symbol (string-upcase (string name)) :ymacs-elisp)))
+
 (defun elisp/org-release () "9.7.11")
 (defun elisp/org-git-version () "release_9.7.11")
 
@@ -279,8 +287,16 @@
 
 ;;; ---- defcustom / use-package glue -------------------------------------
 
-(defmacro elisp/defcustom (name value doc &key type group)
-  (declare (ignore doc type group))
+(defmacro elisp/defcustom (name value doc &key type group
+                           version package-version set get initialize
+                           safe risky options require tag link
+                           &allow-other-keys)
+  ;; The full keyword surface is ACCEPTED so real defcustom forms parse
+  ;; (ob-R/ob-js died on :version, ol.el on :package-version/:set/:safe);
+  ;; v0 models only the standard-get semantics — :set/:safe/:get are
+  ;; recorded-and-ignored, a documented limitation like pcase's v0.
+  (declare (ignore doc type group version package-version set get
+                   initialize safe risky options require tag link))
   `(elisp-def ,(string-downcase (symbol-name name)) ,value))
 
 ;;; ---- Eval --------------------------------------------------------------

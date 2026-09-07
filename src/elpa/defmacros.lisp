@@ -381,14 +381,17 @@ pair, become a list of (var value-form) pairs."
 (defmacro elisp/add-to-list (var value &optional append)
   ;; Elisp: add VALUE to the list stored in VAR unless present.
   ;; The store, not the symbol-value, is where defcustom'd lists live.
-  (let ((store (string-downcase (symbol-name var))))
-    `(progn
-       (unless (member ,value (elisp-get ,store) :test #'equal)
-         (elisp-def ,store
-                    (if ,append
-                        (append (elisp-get ,store) (list ,value))
-                        (cons ,value (elisp-get ,store)))))
-       (elisp-get ,store))))
+  ;; VAR arrives as (quote sym) — the reader's shape for 'sym — so strip
+  ;; it before symbol-name (ob-perl's top-level call died on the cons).
+  (let ((sym (if (and (consp var) (eq (first var) 'quote)) (second var) var)))
+    (let ((store (string-downcase (symbol-name sym))))
+      `(progn
+         (unless (member ,value (elisp-get ,store) :test #'equal)
+           (elisp-def ,store
+                      (if ,append
+                          (append (elisp-get ,store) (list ,value))
+                          (cons ,value (elisp-get ,store)))))
+         (elisp-get ,store)))))
 
 (defmacro elisp/eval-after-load (file &rest body)
   (let ((feature (if (and (consp file) (eq (first file) 'quote))
