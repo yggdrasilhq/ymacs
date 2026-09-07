@@ -273,6 +273,7 @@ elisp symbol domain is :ymacs-elisp (see the value-domain header)."
 ;; RETURNED value is faithful, the in-place side effect is a documented
 ;; limitation, matching the value-store model.
 (defun elisp/delq (elt list) (remove elt list :test #'eq))
+(defun elisp/memq (elt list) (member elt list :test #'eq))
 (defun elisp/remq (elt list) (remove elt list :test #'eq))
 
 (defun elisp/copy-sequence (seq) (copy-seq seq))
