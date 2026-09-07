@@ -319,6 +319,28 @@ elisp symbol domain is :ymacs-elisp (see the value-domain header)."
          (pos (position #\/ s :from-end t)))
     (when pos (subseq s 0 (1+ pos)))))
 
+(defun elisp/make-char-table (_purpose &optional init)
+  ;; v0: a char-table OBJECT (char-keyed hash seeded with INIT) exists
+  ;; so definitions can hold one; the range/inherit machinery is future
+  ;; work (same documented class as make-syntax-table).
+  (let ((h (make-hash-table :test (quote eq))))
+    (when init
+      (dotimes (c 256) (setf (gethash c h) init)))
+    h))
+
+(defun elisp/make-composed-keymap (&rest keymaps)
+  ;; elisp: a keymap whose bindings chain across KEYMAPS. v0: real
+  ;; keymap object with the parents chained via set-keymap-parent;
+  ;; per-event shadowing across the chain is future work.
+  (let ((map (ymacs::elisp/make-keymap)))
+    (dolist (k (remove nil keymaps))
+      (when (elisp-keymap-p k)
+        (let ((tail map))
+          (while (elisp-keymap-parent tail)
+            (setf tail (elisp-keymap-parent tail)))
+          (elisp/set-keymap-parent tail k))))
+    map))
+
 (defun elisp/make-syntax-table (&optional _inherit)
   ;; v0: the table OBJECT (a char-keyed hash) exists so definitions and
   ;; buffers can hold one; the classify/match machinery is future work

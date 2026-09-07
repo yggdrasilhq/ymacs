@@ -95,12 +95,13 @@
     (org-link-set-parameters elisp/org-link-set-parameters)
     (org-cite-register-processor elisp/org-cite-register-processor)
     (intern-soft elisp/intern-soft)
-    (delq elisp/delq) (remq elisp/remq) (memq elisp/memq)
+    (delq elisp/delq) (remq elisp/remq) (memq elisp/memq) (convert-standard-filename elisp/convert-standard-filename)
     (copy-sequence elisp/copy-sequence) (sequencep elisp/sequencep)
     (downcase elisp/downcase) (upcase elisp/upcase)
     (next-line elisp/next-line) (previous-line elisp/previous-line)
     (car-safe elisp/car-safe) (file-name-directory elisp/file-name-directory)
     (make-syntax-table elisp/make-syntax-table)
+    (make-char-table elisp/make-char-table) (make-composed-keymap elisp/make-composed-keymap)
     (display-graphic-p elisp/display-graphic-p)))
 
 (defparameter *measure-macro-bindings*

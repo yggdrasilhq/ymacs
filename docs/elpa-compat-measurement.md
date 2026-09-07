@@ -1,12 +1,14 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-08, org ladder wave V): 85 of 212 corpus files
-load fully; 11047 of 12870 forms (85.8%) evaluate. org reached 60/127
-files (8725/9714, 89.8%). The comint chain vendored (comint 253/263,
-ansi-color 69/71, ansi-osc 18/20) — the elisp `#&` bool-vector
-literal got a dispatch reader and pcomplete climbed to 101/108.
-Depth-0 class is down to three files, and the mid-token-colon class
-is measured to want a real elisp tokenizer.**
+**Headline (2026-09-08, org ladder wave VI): 85 of 212 corpus files
+load fully; 11386 of 12883 forms (88.4%) evaluate. dash READS WHOLE
+now (339/360) — the reader treated elisp `|` symbols as CL
+multi-escapes, silently swallowing whole files — and the
+file-position byte/char drift from multibyte input is gone (forms now
+read from the decoded string). Depth-0 is down to TWO files, both
+tokenizer-project territory: org-table (`1e999` float overflow —
+elisp reads it as infinity, CL cannot) and org-duration (mid-token
+colons).**
 The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
@@ -60,21 +62,35 @@ dynamic space), with a full sweep per package. Contract tests:
 `tests/elpa-corpus-tests.lisp` — they assert the instrument's structure
 and the definition macros' real semantics, never the corpus numbers.
 
-## Numbers (measured 2026-09-08 ladder wave V, corpus + comint chain)
+## Numbers (measured 2026-09-08 ladder wave VI, reader: pipes + slurp)
 
 Raw data: `elpa-compat-measurement.json` (next to this file).
 
 | depth | files | % of corpus |
 |---|---|---|
-| 0 READ — unreadable by the Elisp reader | 3 | 1.4% |
-| 1 LOAD — reads, some forms fail | 124 | 58.5% |
+| 0 READ — unreadable by the Elisp reader | 2 | 0.9% |
+| 1 LOAD — reads, some forms fail | 125 | 59.0% |
 | 2 PROVIDE — fully evaluated + provided | **85** | 40.1% |
 
-- Forms evaluated: **11047 / 12870 (85.8%)** overall — the blessed stack
-  **1686 / 2489 (67.7%)**, org **8725 / 9714 (89.8%)**, comint
-  **253 / 263**, pcomplete **101 / 108**, ansi-color 69/71,
-  ansi-osc 18/20, tabulated-list 57/62, avl-tree 42/45,
-  macroexp 44/46, format-spec/ring/inline all PROVIDE.
+- Forms evaluated: **11386 / 12883 (88.4%)** overall — the blessed stack
+  **~1686 / 2489**, org **8727 / 9714 (89.8%)**, dash **339 / 360**
+  (reads whole now), comint 253/263, pcomplete 101/108,
+  format-spec/ring/inline all PROVIDE.
+- **org ladder wave VI (2026-09-08): the pipe fix + the slurp** —
+  two reader root-causes fell out of the dash/org-table bisects:
+  (1) elisp `|` is an ordinary symbol character (rx or-patterns like
+  `(| "a" "b")`), but CL reads it as the multi-escape delimiter —
+  dash.el's font-lock rx form swallowed the rest of the file to EOF.
+  `|` is a constituent now. (2) On an fd-stream, file-position returns
+  BYTE offsets while the reader's retry arithmetic is character-based;
+  one multibyte char (a single section-sign in dash.el) shifted every
+  package/comma retry restore — read-elisp-forms now decodes the file
+  to a string first, making restores char-consistent. dash READS WHOLE
+  (339/360, provide runs, feature:dash registered). Plus:
+  `convert-standard-filename` binding (ox-publish to 58/59),
+  `make-char-table` (v0 char-keyed object), `make-composed-keymap`
+  (v0 parent chain).
+
 - **org ladder wave V (2026-09-08): the comint chain** —
   `comint`, `ansi-color`, `ansi-osc` vendored (emacs-30.1; corpus 23
   packages / 212 files). ansi-color exposes the `#&` bool-vector
@@ -203,21 +219,20 @@ Raw data: `elpa-compat-measurement.json` (next to this file).
   69/73, seq 59/61, map 50/77, compat 33/350, dash 2/347, pcomplete
   98/108, tabulated-list 57/62, avl-tree 42/45, macroexp 44/46.
 
-### Read failures (3, honest reader gaps)
+### Read failures (2, tokenizer-project territory)
 
-`dash.el` (end of file mid-form — an unclosed-constructor class the
-death-offset bisect has not pinpointed yet), `org-table.el` (reader
-error, position unknown), `org-duration.el` (mid-token colons —
-`h:mm:ss` format symbols; MEASURED UNFIXABLE at readtable level: SBCL's
-tokenizer hard-codes package markers, so this wants a real elisp
-tokenizer — the structural reader project in the queue). The
-2026-09-03 report listed 9 unreadable files; successive waves fixed
-the reader: `[a b c]` vector literals, composable `?\A-\0`-style
-character modifier escapes, an on-demand **package shim** for
-`use-package-normalize/:keyword` / `dash-expand:&hash`-style tokens,
-`?` as a NON-terminating macro char, stray commas outside backquotes
-(with the retry rewind), the token-start colon reader, the 22-bit
-string-escape guard, and the `##` dispatch token.
+`org-table.el` — `1e999` in orgtbl-ascii-plot: elisp reads it as
++infinity, the CL float reader CANNOT parse it at any readtable
+setting (byte-exact death located at 238587). `org-duration.el` —
+mid-token colons (`h:mm:ss` format symbols); SBCL's tokenizer
+hard-codes package markers. Both want the real elisp tokenizer
+(number parsing + package markers) — the structural reader project.
+The 2026-09-03 report listed 9 unreadable files; successive waves
+fixed: `[a b c]` vectors, modifier escapes, the package shim, `?`
+non-terminating, stray commas (with retry rewind), the token-start
+colon reader, the 22-bit string-escape guard, the `##` dispatch
+token, the `#&` bool-vector literal, the `|` multi-escape, and the
+byte/char file-position drift (slurp-to-string).
 
 ### Top missing primitives (what forms actually failed on)
 

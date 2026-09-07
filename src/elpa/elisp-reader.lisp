@@ -160,6 +160,10 @@
 ;; 2026-09-08: a colon-constituent twin readtable still raises "too
 ;; many colons"). Fixing that wants a real elisp tokenizer; queued.
 (set-syntax-from-char #\] #\) *elisp-readtable*)
+;; elisp's `|` is an ordinary symbol character (rx or-patterns: `(| "a"
+;; "b")`); CL's multi-escape delimiter would swallow to the next `|`
+;; — dash.el's font-lock rx ate the rest of the file that way.
+(set-syntax-from-char #\| #\A *elisp-readtable*)
 ;; elisp's `##` token (obsolete self-reference, appears in
 ;; declare-function arglists — org-list.el) — CL's # dispatch would
 ;; demand a label integer. Read it as the plain symbol `##`.
@@ -271,20 +275,20 @@ readtable."
 
 (defun read-elisp-forms (path)
   "Read every top-level form of an Elisp file.
-   Second value non-nil on a read failure (partial forms still returned)."
-  (let ((forms '()) (failure nil) (eof (cons 'elisp-eof nil)))
-    (handler-case
-        (with-open-file (s path :direction :input :element-type 'character
-                                :external-format :utf-8)
-          (let ((*readtable* *elisp-readtable*)
-                (*read-eval* nil)
-                (*package* (find-package :ymacs-elisp)))
-            (loop
-              (let ((form (elisp-read-form s eof)))
-                (when (eq form eof) (return))
-                (push form forms)))))
-      (error (e) (setf failure (format nil "~a" e))))
-    (values (nreverse forms) failure)))
+   Second value non-nil on a read failure (partial forms still
+   returned). The file is DECODED TO A STRING first: on an fd-stream,
+   file-position returns byte offsets while the reader's arithmetic is
+   character-based, so one multibyte char (a single § in dash.el)
+   shifts every package/comma retry restore by a byte and silently
+   eats the rest of the file (measured 2026-09-08). String streams
+   keep file-position char-consistent."
+  (let ((text (with-open-file (s path :direction :input
+                                      :external-format :utf-8)
+                (with-output-to-string (out)
+                  (loop for line = (read-line s nil nil)
+                        while line
+                        do (write-line line out))))))
+    (read-elisp-string text)))
 
 (defun read-elisp-string (s)
   "Read Elisp forms from a string. Same two values as read-elisp-forms."
