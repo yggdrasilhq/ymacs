@@ -84,7 +84,7 @@
     (regexp-quote elisp/regexp-quote) (make-overlay elisp/make-overlay)
     (overlay-put elisp/overlay-put) (delete-overlay elisp/delete-overlay)
     (move-overlay elisp/move-overlay) (easy-menu-add-item elisp/easy-menu-add-item)
-    (user-error elisp/user-error)
+    (user-error elisp/user-error) (rx-to-string elisp/rx-to-string)
     (kbd elisp/kbd) (set-keymap-parent elisp/set-keymap-parent)
     (make-marker elisp/make-marker) (expand-file-name elisp/expand-file-name)
     (emacs-version elisp/emacs-version)
@@ -121,7 +121,7 @@
     (add-to-list elisp/add-to-list) (eval-after-load elisp/eval-after-load)
     (define-advice elisp/define-advice) (while elisp/while)
     (pcase-dolist elisp/pcase-dolist)
-    (rx elisp/rx) (rx-to-string elisp/rx-to-string)
+    (rx elisp/rx)
     (gv-define-setter elisp/gv-define-setter) (pcase elisp/pcase)))
 
 (defparameter *measure-cl-aliases*
