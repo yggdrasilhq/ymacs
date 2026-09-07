@@ -29,7 +29,15 @@ GPL-3.0-or-later, so the vendoring is licence-clean.
 | orderless | 1.7 | 7f65412799662761e6a37d8170ce506ccb7fd236906ed94f7384ec4d65a4333c |
 | tempel | 1.14 | c375d362b9d464f4dd4486ead9e091d0fa6c337457a8e32796ece6dc46f15fd4 |
 | vertico | 2.13 | 3ac95cd8f9159670b0fbbb7a3f1cfb0c0a9f44c437e44482106837334b422c3a |
+| pcomplete | 30.1 (from emacs-30.1) | file sha256: 406ad7c8b292cb994ce0ce5c5ee392852bcf32d05871510870ebfc62267ac347 |
 | org | 9.7.11 (from emacs-30.1) | tar sha256: 6ccac1ae76e6af93c6de1df175e8eb406767c23da3dd2a16aa67e3124a6f138f |
+
+**pcomplete** is the second emacs-30.1 `lisp/` entry (after org): the
+`org-pcomplete` dependency, vendored verbatim from the SAME
+emacs-30.1 tarball on 2026-09-07 so `(require (quote pcomplete))`
+resolves inside the corpus. Its own depth-1 gap is unmet
+`feature:comint` (the comint/ring/ansi-color chain is the queued
+next vendor step).
 
 Re-pinning: bump the version here with the new sha256, re-run the
 instrument, and re-land the numbers — a pin bump that ships without new
