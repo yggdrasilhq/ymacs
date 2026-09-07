@@ -307,6 +307,33 @@ elisp symbol domain is :ymacs-elisp (see the value-domain header)."
   ;; the interactive command mirrors C-p: same motion, defaulting up
   (elisp/next-line (- (or n 1)) buf))
 
+(defun elisp/car-safe (x)
+  ;; elisp: (car X) when X is a cons, else nil — never errors
+  (when (consp x) (car x)))
+
+(defun elisp/file-name-directory (name)
+  ;; elisp: the directory component WITH the trailing slash, nil when
+  ;; the name has no directory part
+  (let* ((s (namestring (pathname name)))
+         (pos (position #\/ s :from-end t)))
+    (when pos (subseq s 0 (1+ pos)))))
+
+(defun elisp/make-syntax-table (&optional _inherit)
+  ;; v0: the table OBJECT (a char-keyed hash) exists so definitions and
+  ;; buffers can hold one; the classify/match machinery is future work
+  ;; (same documented class as the marker stub).
+  (make-hash-table :test #'eql))
+
+(defun elisp/convert-standard-filename (name)
+  ;; elisp: map a standard name to the OS convention — on POSIX that is
+  ;; the identity (the w32 backslash/splitting mapping does not apply).
+  name)
+
+(defun elisp/display-graphic-p (&optional _display)
+  ;; ymacs surfaces are yggterm rows, not X frames — nil is the v0
+  ;; answer here; the surface model answers graphicness elsewhere.
+  nil)
+
 (defun elisp/org-release () "9.7.11")
 (defun elisp/org-git-version () "release_9.7.11")
 

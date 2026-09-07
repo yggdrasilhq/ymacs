@@ -207,10 +207,16 @@ Elisp leaves those to the keymap variable's own definition."
 
 (defmacro elisp/define-inline (name args &rest body)
   ;; (define-inline NAME ARGS [DOCSTRING] [DECLARE…] BODY…) — v0 defines
-  ;; NAME as a plain FUNCTION with the given body. The inline expansion
-  ;; layer (compiler-macro via inline-letevals/inline-quote) is
-  ;; documented-limitation future work: call sites work, nothing inlines.
-  (let ((doc (when (stringp (first body)) (pop body))))
+  ;; NAME as a plain FUNCTION with the given body. Two documented v0
+  ;; choices: the inline expansion layer (compiler-macro via
+  ;; inline-letevals/inline-quote) is future work — call sites work,
+  ;; nothing inlines; and the elisp DECLARE forms are stripped, since
+  ;; they carry elisp compiler metadata ((inline t), (pure t)) that is
+  ;; not CL declaration syntax and dies in both SBCL evaluators.
+  (let ((doc (when (stringp (first body)) (pop body)))
+        (body (remove-if (lambda (f) (and (consp f) (eq (first f) 'declare)))
+                         body)))
+    (declare (dynamic-extent body))
     `(cl:defun ,name ,args
        ,@(when doc (list doc))
        ,@body)))
@@ -222,6 +228,40 @@ Elisp leaves those to the keymap variable's own definition."
   ;; that). v0: a no-op at call time; reading/prompting the spec is the
   ;; command-layer's job, not the declaration's.
   (declare (ignore _spec))
+  nil)
+
+(defmacro elisp/cl-defstruct (name-and-opts &rest slots)
+  ;; Elisp cl-defstruct on top of cl:defstruct — the cl-lib doctrine
+  ;; (same as cl-defmethod → cl:defmethod; replaces the bare alias so
+  ;; the elisp divergences can be handled). Two exist:
+  ;; - (:constructor nil) ("no default constructor") COMBINED with named
+  ;;   constructors: CL accepts nil only as the sole constructor option,
+  ;;   elisp allows the mix — the nil entry is dropped, the named BOA
+  ;;   constructors kept (the default then exists unused; a documented
+  ;;   approximation — org-element-ast's deferred struct needs it).
+  ;; - a leading DOCSTRING before the slots: SBCL rejects
+  ;;   (:documentation …) on (:type …) defstructs, and docs are
+  ;;   metadata — the docstring is dropped (the struct still defines).
+  (when (consp name-and-opts)
+    ;; options include the bare :named keyword (must follow (:type …)),
+    ;; so every option access guards for atoms
+    (flet ((ctor-p (o) (and (consp o) (eq (first o) :constructor)))
+           (ctor-nil-p (o) (and (consp o) (eq (first o) :constructor)
+                                (null (second o)))))
+      (let* ((opts (copy-list (rest name-and-opts)))
+             (ctors (remove-if-not #'ctor-p opts)))
+        (when (and (> (length ctors) 1) (find-if #'ctor-nil-p ctors))
+          (setf opts (remove-if #'ctor-nil-p opts)))
+        (setf name-and-opts (cons (first name-and-opts) opts)))))
+  (when (stringp (first slots)) (pop slots))
+  `(cl:defstruct ,name-and-opts ,@slots))
+
+(defmacro elisp/easy-menu-define (_name _keymap _doc &rest _menus)
+  ;; v0: registers nothing — the shipped surface has its own menu model
+  ;; (easy-menu-add-item covers the runtime adds); the definition form
+  ;; evaluates to nil, a documented limitation like defface's
+  ;; spec-holding.
+  (declare (ignore _name _keymap _doc _menus))
   nil)
 
 ;;; --- keymaps ------------------------------------------------------------------

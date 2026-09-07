@@ -35,6 +35,7 @@ GPL-3.0-or-later, so the vendoring is licence-clean.
 | avl-tree | 30.1 (from emacs-30.1) | file sha256: 4cab85d2562a657f127877a4b08d6453809f888b2642525f68bf3422cfe4d946 |
 | tabulated-list | 30.1 (from emacs-30.1) | file sha256: d80a596782d16a6979124ef0e46dc6527fb660df7ee08110b7907c93c30bc026 |
 | inline | 30.1 (from emacs-30.1) | file sha256: 98bc6985eda35d32362357232afdf4680d63db077387ca1f4a47c8851b6fef9c |
+| macroexp | 30.1 (from emacs-30.1) | file sha256: 49d2e3ac7b14b538b057e93318010ea42761347f8ec8c47af4b988bc87ee615b |
 | org | 9.7.11 (from emacs-30.1) | tar sha256: 6ccac1ae76e6af93c6de1df175e8eb406767c23da3dd2a16aa67e3124a6f138f |
 
 **inline** (the define-inline machinery) joined on 2026-09-08 for

@@ -21,7 +21,7 @@
 (defparameter *corpus-packages*
   '("seq" "compat" "map" "dash" "use-package" "cape" "corfu" "consult"
     "marginalia" "orderless" "tempel" "vertico" "format-spec" "ring"
-    "avl-tree" "inline" "tabulated-list" "pcomplete" "org")
+    "avl-tree" "inline" "macroexp" "tabulated-list" "pcomplete" "org")
   "Measurement order: foundation libraries first, so require pulls a
    dependency from its own vendored slot instead of mid-corpus surprise.
    org rides last and stands alone: it is the step-6 IMPORT target
@@ -97,7 +97,10 @@
     (delq elisp/delq) (remq elisp/remq)
     (copy-sequence elisp/copy-sequence) (sequencep elisp/sequencep)
     (downcase elisp/downcase) (upcase elisp/upcase)
-    (next-line elisp/next-line) (previous-line elisp/previous-line)))
+    (next-line elisp/next-line) (previous-line elisp/previous-line)
+    (car-safe elisp/car-safe) (file-name-directory elisp/file-name-directory)
+    (make-syntax-table elisp/make-syntax-table)
+    (display-graphic-p elisp/display-graphic-p)))
 
 (defparameter *measure-macro-bindings*
   '((defcustom elisp/defcustom) (use-package ymacs-use-package)
@@ -113,7 +116,9 @@
     (define-minor-mode elisp/define-minor-mode)
     (define-derived-mode elisp/define-derived-mode)
     (define-inline elisp/define-inline)
+    (cl-defstruct elisp/cl-defstruct)
     (interactive elisp/interactive)
+    (easy-menu-define elisp/easy-menu-define)
     (defvar-keymap elisp/defvar-keymap)
     (autoload elisp/autoload)
     (eval-when-compile elisp/eval-when-compile)
@@ -163,7 +168,7 @@
     (cl-digit-char-p digit-char-p) (cl-concatenate concatenate)
     (cl-plusp plusp) (cl-minusp minusp) (cl-zerop zerop)
     (cl-evenp evenp) (cl-oddp oddp) (cl-min min) (cl-max max)
-    (cl-defstruct defstruct) (cl-deftype deftype))
+    (cl-deftype deftype))
   "cl-lib names ARE CL here — CL is ymacs's cl-lib implementation —
    so cl-incf is cl:incf and cl-loop is cl:loop. Aliases, not fakes.
    cl-defstruct is the same doctrine: the elisp struct syntax used by
@@ -195,6 +200,12 @@
 (defun measure-install-env ()
   "Bind the shipped compat layer under its Elisp names in :ymacs-elisp."
   (let ((el (find-package :ymacs-elisp)))
+    ;; Pre-shadow CL names the corpus legitimately redefines (macroexp.el
+    ;; defines macroexpand/macroexpand-1 with ELISP semantics). Without
+    ;; the shadow, defun targets the INHERITED CL symbol and silently
+    ;; redefines CL itself — macroexpansion inside the measure env then
+    ;; runs elisp semantics and poisons everything downstream.
+    (shadow (list "MACROEXPAND" "MACROEXPAND-1") el)
     (dolist (b *measure-fn-bindings*)
       (let ((sym (find-symbol (string (second b)) (find-package :ymacs))))
         (when sym
@@ -218,7 +229,9 @@
                      ;; emacs-version; the variable is the release string
                      (cons "emacs-version" "30.1")
                      ;; Emacs predefines the load search suffixes
-                     (cons "load-suffixes" '(".el" ".elc"))))
+                     (cons "load-suffixes" '(".el" ".elc"))
+                     ;; nil in interactive sessions, t under --batch
+                     (cons "noninteractive" nil)))
       (let ((sym (measure-elisp-symbol (string-upcase (car v)) el)))
         (proclaim `(special ,sym))
         (setf (symbol-value sym) (cdr v))))
