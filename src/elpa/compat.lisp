@@ -267,6 +267,46 @@ elisp symbol domain is :ymacs-elisp (see the value-domain header)."
       name
       (find-symbol (string-upcase (string name)) :ymacs-elisp)))
 
+;; list/sequence subrs (2026-09-08, the ox/org-element rung wave):
+;; delq/remq are EQ-based removal. The elisp versions may reuse the
+;; tail's structure (destructive); this v0 is non-destructive — the
+;; RETURNED value is faithful, the in-place side effect is a documented
+;; limitation, matching the value-store model.
+(defun elisp/delq (elt list) (remove elt list :test #'eq))
+(defun elisp/remq (elt list) (remove elt list :test #'eq))
+
+(defun elisp/copy-sequence (seq) (copy-seq seq))
+(defun elisp/sequencep (x) (typep x 'sequence))
+
+;; case subrs: elisp downcase/upcase take a char OR a string.
+(defun elisp/downcase (x)
+  (if (characterp x) (char-downcase x) (string-downcase x)))
+(defun elisp/upcase (x)
+  (if (characterp x) (char-upcase x) (string-upcase x)))
+
+(defun elisp/next-line (&optional n buf)
+  ;; elisp: move point down N lines (negative up). The position math is
+  ;; real; the column-goal tracking (try-column) is interactive polish,
+  ;; a documented limitation.
+  (let* ((b (or buf *current-buffer*))
+         (steps (or n 1))
+         (content (and b (buffer-content b))))
+    (when b
+      (let ((i (or (buffer-point b) 0)) (len (length content)) (seen 0))
+        (loop while (and (< seen (abs steps)) (< i len) (>= i 0))
+              do (cond ((plusp steps)
+                        (when (eql (char content i) #\newline) (incf seen))
+                        (incf i))
+                       (t
+                        (decf i)
+                        (when (and (>= i 0) (eql (char content i) #\newline))
+                          (incf seen)))))
+        (setf (buffer-point b) (max 0 (min i len)))))))
+
+(defun elisp/previous-line (&optional n buf)
+  ;; the interactive command mirrors C-p: same motion, defaulting up
+  (elisp/next-line (- (or n 1)) buf))
+
 (defun elisp/org-release () "9.7.11")
 (defun elisp/org-git-version () "release_9.7.11")
 

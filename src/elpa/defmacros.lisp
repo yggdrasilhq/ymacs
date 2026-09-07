@@ -178,6 +178,52 @@ Elisp leaves those to the keymap variable's own definition."
            ,@body
            ,mode)))))
 
+(defmacro elisp/define-derived-mode (child parent name &rest rest)
+  ;; (define-derived-mode CHILD PARENT NAME [DOCSTRING] [:kw val]… BODY…)
+  ;; v0: defines the CHILD-MAP keymap (keymap-parented to PARENT-MAP when
+  ;; that is bound) and a CHILD-mode function recording major-mode/
+  ;; mode-name, running the BODY and CHILD-hook. The parent mode FUNCTION
+  ;; is deliberately not called — Emacs-core ancestors (special-mode,
+  ;; tabulated-list-mode's own parent) are a documented limitation, not
+  ;; a fake; the derived keymap and hook wiring are real.
+  (let ((doc (when (stringp (first rest)) (pop rest))))
+    (let ((map (intern (format nil "~a-MAP" (symbol-name child))))
+          (pmap (intern (format nil "~a-MAP" (symbol-name parent)))))
+      `(progn
+         (cl:defvar ,map
+           (let ((m (ymacs::elisp/make-keymap)))
+             (when (boundp ',pmap)
+               (ymacs::elisp/set-keymap-parent m ,pmap))
+             m)
+           ,@(when doc (list doc)))
+         (cl:defun ,child ()
+           ,@(when doc (list doc))
+           (ymacs::elisp-def "major-mode" ',child)
+           (ymacs::elisp-def "mode-name" ,name)
+           ,@rest
+           (ymacs::elisp/run-hooks ',(intern (format nil "~a-HOOK"
+                                                     (symbol-name child))))
+           ',child)))))
+
+(defmacro elisp/define-inline (name args &rest body)
+  ;; (define-inline NAME ARGS [DOCSTRING] [DECLARE…] BODY…) — v0 defines
+  ;; NAME as a plain FUNCTION with the given body. The inline expansion
+  ;; layer (compiler-macro via inline-letevals/inline-quote) is
+  ;; documented-limitation future work: call sites work, nothing inlines.
+  (let ((doc (when (stringp (first body)) (pop body))))
+    `(cl:defun ,name ,args
+       ,@(when doc (list doc))
+       ,@body)))
+
+(defmacro elisp/interactive (&rest _spec)
+  ;; (interactive [SPEC]) is a declaration INSIDE command bodies — it
+  ;; must exist at CALL time too or every command invocation explodes
+  ;; (org-version called from ox.el's creator defcustom hit exactly
+  ;; that). v0: a no-op at call time; reading/prompting the spec is the
+  ;; command-layer's job, not the declaration's.
+  (declare (ignore _spec))
+  nil)
+
 ;;; --- keymaps ------------------------------------------------------------------
 
 (defmacro elisp/defvar-keymap (name &rest options)

@@ -30,8 +30,19 @@ GPL-3.0-or-later, so the vendoring is licence-clean.
 | tempel | 1.14 | c375d362b9d464f4dd4486ead9e091d0fa6c337457a8e32796ece6dc46f15fd4 |
 | vertico | 2.13 | 3ac95cd8f9159670b0fbbb7a3f1cfb0c0a9f44c437e44482106837334b422c3a |
 | pcomplete | 30.1 (from emacs-30.1) | file sha256: 406ad7c8b292cb994ce0ce5c5ee392852bcf32d05871510870ebfc62267ac347 |
+| format-spec | 30.1 (from emacs-30.1) | file sha256: cf219cd3d4e1de0c29c3a7decff6f390155b68f1f67a11ec121796b3179c46f0 |
+| ring | 30.1 (from emacs-30.1) | file sha256: e1cc923221198204c93f7750fe13715d45545b4f88cb24623bfb43d2140f11d5 |
+| avl-tree | 30.1 (from emacs-30.1) | file sha256: 4cab85d2562a657f127877a4b08d6453809f888b2642525f68bf3422cfe4d946 |
+| tabulated-list | 30.1 (from emacs-30.1) | file sha256: d80a596782d16a6979124ef0e46dc6527fb660df7ee08110b7907c93c30bc026 |
+| inline | 30.1 (from emacs-30.1) | file sha256: 98bc6985eda35d32362357232afdf4680d63db077387ca1f4a47c8851b6fef9c |
 | org | 9.7.11 (from emacs-30.1) | tar sha256: 6ccac1ae76e6af93c6de1df175e8eb406767c23da3dd2a16aa67e3124a6f138f |
 
+**inline** (the define-inline machinery) joined on 2026-09-08 for
+org-element-ast. The 2026-09-08 wave added four more emacs-30.1 `lisp/` entries
+alongside pcomplete: **format-spec** (org-compat/org-macro
+dependency), **ring** and **avl-tree** (org-element), and
+**tabulated-list** (org-lint keymap parent; Emacs preloads it,
+the corpus must vendor it) — all verbatim, same tarball.
 **pcomplete** is the second emacs-30.1 `lisp/` entry (after org): the
 `org-pcomplete` dependency, vendored verbatim from the SAME
 emacs-30.1 tarball on 2026-09-07 so `(require (quote pcomplete))`
