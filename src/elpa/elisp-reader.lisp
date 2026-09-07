@@ -154,7 +154,20 @@
 ;; parses, and define-inline registers without its body ever evaluating.
 (defparameter *elisp-readtable-comma* (copy-readtable *elisp-readtable*))
 (set-syntax-from-char #\, #\A *elisp-readtable-comma*)
+;; NOTE: mid-token colons (org-duration's `h:mm:ss` format symbols)
+;; are NOT fixable at readtable level — SBCL's tokenizer hard-codes
+;; package markers, no readtable treatment turns them off (measured
+;; 2026-09-08: a colon-constituent twin readtable still raises "too
+;; many colons"). Fixing that wants a real elisp tokenizer; queued.
 (set-syntax-from-char #\] #\) *elisp-readtable*)
+;; elisp's `##` token (obsolete self-reference, appears in
+;; declare-function arglists — org-list.el) — CL's # dispatch would
+;; demand a label integer. Read it as the plain symbol `##`.
+(set-dispatch-macro-character #\# #\#
+                              (lambda (stream sub-char numarg)
+                                (declare (ignore stream sub-char numarg))
+                                '|##|)
+                              *elisp-readtable*)
 
 ;;; --- the missing package system ---------------------------------------------
 ;;;;

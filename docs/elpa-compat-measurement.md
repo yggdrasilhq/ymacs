@@ -1,14 +1,12 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-08, org ladder wave III): 80 of 208 corpus files
-load fully; 10426 of 12298 forms (84.8%) evaluate. org reached 56/127
-files (8498/9542, 89.1%); the EXPORT FAMILY OPENED — ox, ox-ascii,
-ox-icalendar, ox-latex, ox-man, ox-md and ox-org all PROVIDE — and
-org-lint closed its 60-hit make-org-lint-checker rung (152/152).
-Root causes fixed: a latent reader bug (the comma-tolerant retry never
-rewound to the form start), the missing cl-defstruct alias, the
-`interactive` declaration exploding at call time, and five more
-emacs-30.1 vendors.**
+**Headline (2026-09-08, org ladder wave IV): 82 of 209 corpus files
+load fully; 10701 of 12516 forms (85.5%) evaluate. org reached 57/127
+files (8722/9714, 89.7%) — org-list now READS whole (an elisp `##`
+dispatch token) — and org-element-ast's deferred-value struct
+evaluates (elisp cl-defstruct on top of cl:defstruct). macroexp.el and
+five more emacs-30.1 vendors landed; the elisp macroexpand-1/macroexpand
+redefinitions no longer clobber CL's own (pre-shadowed).**
 The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
@@ -25,8 +23,8 @@ seq 2.24, compat 31.0.0.2, map 3.3.1, dash 2.20.0, use-package 2.4.6,
 cape 2.9, corfu 2.14, consult 3.7, marginalia 2.12, orderless 1.7,
 tempel 1.14, vertico 2.13 — **75 top-level `.el` files** — plus **org
 9.7.11** (127 `.el` files) and the emacs-30.1 `lisp/` entries
-**pcomplete, format-spec, ring, avl-tree, inline, tabulated-list**
-(6 files), all extracted verbatim from `lisp/` of GNU emacs-30.1, the
+**pcomplete, format-spec, ring, avl-tree, inline, macroexp,
+tabulated-list** (7 files), all extracted verbatim from `lisp/` of GNU emacs-30.1, the
 SAME release the vendored manuals came from (`docs/emacs-manual/
 fetch-org.sh` re-pins org; generated `org-loaddefs.el` dropped).
 
@@ -62,20 +60,38 @@ dynamic space), with a full sweep per package. Contract tests:
 `tests/elpa-corpus-tests.lisp` — they assert the instrument's structure
 and the definition macros' real semantics, never the corpus numbers.
 
-## Numbers (measured 2026-09-08 ladder wave III, corpus + 6 emacs-30.1 vendors)
+## Numbers (measured 2026-09-08 ladder wave IV, corpus + macroexp vendor)
 
 Raw data: `elpa-compat-measurement.json` (next to this file).
 
 | depth | files | % of corpus |
 |---|---|---|
-| 0 READ — unreadable by the Elisp reader | 4 | 1.9% |
-| 1 LOAD — reads, some forms fail | 124 | 59.6% |
-| 2 PROVIDE — fully evaluated + provided | **80** | 38.5% |
+| 0 READ — unreadable by the Elisp reader | 3 | 1.4% |
+| 1 LOAD — reads, some forms fail | 124 | 59.3% |
+| 2 PROVIDE — fully evaluated + provided | **82** | 39.2% |
 
-- Forms evaluated: **10426 / 12298 (84.8%)** overall — the blessed stack
-  **1685 / 2489 (67.7%)**, org **8498 / 9542 (89.1%)**, pcomplete
-  **98 / 108** (unmet `comint` chain), tabulated-list 57/62, avl-tree
-  36/45, inline 21/22 (unmet `macroexp` — the next vendor).
+- Forms evaluated: **10701 / 12516 (85.5%)** overall — the blessed stack
+  **1686 / 2489 (67.7%)**, org **8722 / 9714 (89.7%)**, pcomplete
+  **98 / 108** (unmet `comint` chain), tabulated-list 57/62,
+  avl-tree 42/45, macroexp 44/46, format-spec/ring/inline all PROVIDE.
+- **org ladder wave IV (2026-09-08): the cl-defstruct rung** —
+  elisp `cl-defstruct` now rides on `cl:defstruct` (the cl-lib
+  doctrine) with two elisp divergences transformed: `(:constructor
+  nil)` combined with named BOA constructors drops the nil entry, and
+  a leading docstring is dropped (SBCL rejects `:documentation` on
+  `:type` defstructs). org-element-ast's deferred-value struct — three
+  BOA constructors + `(:type vector) :named` — evaluates. **org-list
+  reads whole**: elisp's `##` token (a declare-function arglist
+  leftover) has a dispatch reader now. macroexp.el vendored; the
+  elisp `macroexpand-1`/`macroexpand` redefinitions are pre-shadowed so
+  they no longer REDEFINE CL's own mid-run (measured: without the
+  shadow, macroexp.el's defun silently replaced CL's function and
+  poisoned every downstream macroexpansion). `car-safe`,
+  `file-name-directory`, `convert-standard-filename`,
+  `make-syntax-table` (v0 object), `display-graphic-p` (nil), the
+  `noninteractive` variable, and `easy-menu-define` (v0 no-op) landed.
+  org-list PROVIDES (57th org file); inline now PROVIDES off macroexp.
+
 - **org ladder wave III (2026-09-08): org-lint PROVIDES 152/152** (the
   60-hit `make-org-lint-checker` histogram entry is gone) **and the ox
   export family opened** — `ox`, `ox-ascii`, `ox-icalendar`,
@@ -172,26 +188,28 @@ Raw data: `elpa-compat-measurement.json` (next to this file).
     `org-git-version` bound to the pinned version (the generated
     header Emacs ships preloaded).
 
-- Depth-2 named additions this wave: **`org-lint`, `ox`, `ox-ascii`,
-  `ox-icalendar`, `ox-latex`, `ox-man`, `ox-md`, `ox-org`** in org;
-  `seq.el` and the `format-spec`/`ring` vendor files in the
-  foundations. Per-package forms-evaluated: consult 452/494, corfu
-  223/246, use-package 235/242, vertico 223/241, cape 124/135,
-  marginalia 145/150, tempel 70/73, orderless 69/73, seq 59/61,
-  map 50/77, compat 33/350, dash 2/347, pcomplete 98/108,
-  tabulated-list 57/62, avl-tree 36/45, inline 21/22.
+- Depth-2 named additions this wave: **`org-list`** in org; the
+  `inline` vendor (via macroexp). Per-package forms-evaluated:
+  consult 452/494, corfu 223/246, use-package 235/242, vertico
+  223/241, cape 124/135, marginalia 145/150, tempel 71/73, orderless
+  69/73, seq 59/61, map 50/77, compat 33/350, dash 2/347, pcomplete
+  98/108, tabulated-list 57/62, avl-tree 42/45, macroexp 44/46.
 
-### Read failures (4, honest reader gaps)
+### Read failures (3, honest reader gaps)
 
-`dash.el`, `org-table.el`, `org-list.el`, `org-duration.el` — the
-reader still dies mid-form on each (tracked in the queue below). The
+`dash.el` (end of file mid-form — an unclosed-constructor class the
+death-offset bisect has not pinpointed yet), `org-table.el` (reader
+error, position unknown), `org-duration.el` (mid-token colons —
+`h:mm:ss` format symbols; MEASURED UNFIXABLE at readtable level: SBCL's
+tokenizer hard-codes package markers, so this wants a real elisp
+tokenizer — the structural reader project in the queue). The
 2026-09-03 report listed 9 unreadable files; successive waves fixed
 the reader: `[a b c]` vector literals, composable `?\A-\0`-style
 character modifier escapes, an on-demand **package shim** for
 `use-package-normalize/:keyword` / `dash-expand:&hash`-style tokens,
-`?` as a NON-terminating macro char, stray commas outside backquotes,
-the token-start colon reader, the 22-bit string-escape guard, and the
-comma-retry rewind.
+`?` as a NON-terminating macro char, stray commas outside backquotes
+(with the retry rewind), the token-start colon reader, the 22-bit
+string-escape guard, and the `##` dispatch token.
 
 ### Top missing primitives (what forms actually failed on)
 
@@ -223,25 +241,25 @@ dependency chain (comint→ring/ansi-color) is not vendored yet.
 
 ### The org queue after this wave (top blockers)
 
-- **org-element-ast 34/48** — needs a REAL elisp cl-defstruct (the
-  deferred-value struct combines `(:constructor nil)` with named BOA
-  constructors — CL rejects that), plus `car-safe` and its own
-  `org-element-adopt/extract/set` (defined behind that struct).
-  `feature:org-element-ast` IS registered, so the family still
-  resolves.
-- **`macroexp` vendor** — inline.el is 21/22 on it; macroexp.el is the
-  next small vendor.
-- **org-html/ox-texinfo residuals** — `org-export-with-latex` is
-  defined in ox-latex.el, which the alphabetical sweep loads AFTER
-  ox-html (an honest load-order artifact, not a compat gap);
-  `feature:table` and `org-html-meta-tags-default` are real gaps.
-- **org-table / org-list / org-duration** — depth-0; the reader dies
-  mid-form. Bisect with the door's death-offset recipe.
-- **pcomplete 98/108** — the comint/ring…-chain: comint requires
-  ring (now provided!) plus ansi-color/ansi-osc.
-- **ox-html 205/209, ox-publish 57/59, ox-texinfo 116/117** — one to
-  four forms each (`convert-standard-filename`,
-  `org-html-meta-tags-default`, `feature:table`).
+- **org-element-ast 34/48 — the one structural blocker left**: its
+  define-inline forms load inline.el's REAL define-inline macro
+  mid-file (last defmacro wins — honest elisp semantics), and that
+  macro's expansion machinery fails in the compat env. Getting it
+  green means chasing inline.el's macro expansion path — after that,
+  org-element (needs make-char-table, org-list/org-table features) and
+  the whole ox-* depth open up.
+- **org-table / org-duration / dash** — the three depth-0 files
+  (causes above). The elisp tokenizer is the structural fix for the
+  colon class; dash/org-table want death-offset bisects.
+- **pcomplete 98/108** — the comint chain (ring is provided now;
+  comint needs ansi-color/ansi-osc too).
+- **ox-html 206/209, ox-publish 58/59, ox-texinfo 116/117** —
+  one-to-four forms each; `org-export-with-latex` misses are the
+  alphabetical load-order artifact (ox-latex defines it after
+  ox-html), not compat gaps.
+- **macroexp 44/46, tabulated-list 57/62, avl-tree 42/45** — small
+  eval gaps in the newer vendors (make-composed-keymap,
+  macroexp-warn-and-return, gv-define-simple-setter/iter).
 
 ## What the numbers mean — the ELPA work queue
 
@@ -260,13 +278,14 @@ dependency chain (comint→ring/ansi-color) is not vendored yet.
    `defcustom`'s keyword family, `add-to-list`, `intern-soft`,
    `delq`/`remq`, `downcase`/`upcase`, `copy-sequence`, `sequencep`,
    `define-inline` (v0), `define-derived-mode` (v0), the
-   `interactive` declaration, the cl-defstruct alias, and the
-   variable-intern upcase fix. Remaining small shims:
-   `car-safe(9)`, `file-name-directory(4)`, `make-syntax-table(4)`,
-   `easy-menu-define(4)`, `substitute-key-definition(3)`,
-   `display-graphic-p(3)`, `noninteractive(4)`.
-4. **Feature coverage**: vendor `macroexp`, `comint`/`ansi-color`,
-   `kmacro`, `json` into the corpus as they gain support, so the
+   `interactive` declaration, elisp `cl-defstruct`, the `##` token,
+   the variable-intern upcase fix, `car-safe`, `file-name-directory`,
+   `convert-standard-filename`, `make-syntax-table` (v0),
+   `easy-menu-define` (v0), `noninteractive`. Remaining small shims:
+   `substitute-key-definition(3)`, `make-char-table(3)`,
+   `org-replace-disputed-keys(16)`.
+4. **Feature coverage**: vendor `comint`/`ansi-color`, `kmacro`,
+   `json`, `table` into the corpus as they gain support, so the
    measurement can see past them.
 
 ## Rerunning
