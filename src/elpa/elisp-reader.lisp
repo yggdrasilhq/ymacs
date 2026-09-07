@@ -117,6 +117,28 @@
 (set-macro-character #\" #'elisp-read-string nil *elisp-readtable*)
 (set-macro-character #\? #'elisp-read-char t *elisp-readtable*)
 (set-macro-character #\[ #'elisp-read-vector t *elisp-readtable*)
+;; A token-start colon is an Elisp keyword (:type); a LONE colon —
+;; `(: sym ...)` inside rx patterns — is the empty-name symbol Emacs
+;; accepts and the standard reader rejects. Non-terminating, so
+;; mid-symbol colons (pkg:sym, org:link) never reach this handler.
+(defun elisp-read-colon (stream char)
+  (declare (ignore char))
+  (flet ((delimiter-p (c)
+           (or (null c)
+               (member c '(#\Space #\Newline #\Tab #\Return
+                           #\( #\) #\` #\' #\, #\; #\")))))
+    (let ((next (peek-char nil stream nil nil)))
+      (if (delimiter-p next)
+          (progn (read-char stream)
+                 (intern ":" (find-package :ymacs-elisp)))
+          (let ((token (with-output-to-string (out)
+                         (loop for c = (peek-char nil stream nil nil)
+                               while (not (delimiter-p c))
+                               do (write-char (read-char stream) out)))))
+            ;; the standard readtable reads :upcase — keywords match
+            (intern (string-upcase token) (find-package :keyword)))))))
+
+(set-macro-character #\: #'elisp-read-colon t *elisp-readtable*)
 ;; The comma-tolerant twin readtable: define-inline bodies contain
 ;; `,x` outside a backquote (the macro splices them itself), which the
 ;; standard reader rejects. On that error the form is re-read once with

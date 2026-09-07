@@ -1,11 +1,11 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-07, org bootstrap): 34 of 202 corpus files load fully;
-8448 of 11080 forms (76%) evaluate. The blessed stack stands at 16/75
-files and 1664/2263 (74%); org — the step-6 import, borrowed verbatim
-from the same emacs-30.1 release as the manuals — jumped from its 1/127
-import baseline to 18/127 files and 6780/8591 (79%): ob.el and fifteen
-ob-* / org-macro / org-version files load and provide.** The first measurement (2026-09-03) put this at 1 file
+**Headline (2026-09-07, org rungs): 34 of 202 corpus files load fully;
+8745 of 11253 forms (78%) evaluate. The blessed stack stands at 16/75
+files and 1664/2263 (74%); org climbed another rung — 18/127 files and
+7077/8764 (81%) — and the depth-0 class is EXTINCT: ol.el and
+org-lint.el now read whole (a token-start colon reader: a lone `:` in
+rx patterns is the empty-name symbol Emacs accepts).** The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
 at. Re-run the instrument after every compat change and re-land the
@@ -80,6 +80,11 @@ Raw data: `elpa-compat-measurement.json` (next to this file).
   - **Reader: stray commas outside a backquote** (`define-inline`
     bodies in org-element-ast) now re-read once through a
     comma-tolerant readtable instead of killing the file.
+  - **Reader (rung 2): a token-start colon reader** — a lone `:` in rx
+    patterns (`(: string-start …)`) is the empty-name symbol Emacs
+    accepts; `:keyword` tokens still read as keywords, upcased as the
+    standard readtable does. ol.el and org-lint.el now read whole —
+    the depth-0 class is extinct.
   - **Primitives** (shipped compat layer, honest implementations):
     `add-to-list`, `make-obsolete(-variable)`, `make-sparse-keymap`,
     `defvaralias`, `eval-after-load`, `while`, `getenv`,
@@ -143,16 +148,15 @@ regexp-opt, tabulated-list, bytecomp, dash — mostly cascade: a feature
 
 ### The org queue after this wave (top blockers)
 
-`make-org-lint-checker` (60, org-lint's macro — org-lint is one of the
-two remaining depth-0 files), `feature:ol` (20 — ol.el's remaining
-reader death), `org-export-create-backend` (10),
-`org-replace-disputed-keys` (8), `org-element-deferred-create` (7),
-`feature:format-spec` (5), `rx-to-string` (4), `emacs-version` (3),
-`cl-defstruct` (3), `noninteractive` (3). The org-export (`ox-*`)
-family waits behind `org-element-ast`/`org-element`, which read and
-evaluate but still miss a handful.
+The remaining org gap is one-form-per-file: a dozen `ob-*` loaders sit
+at >=90% evaluated (ob-R 43/44, ob-emacs-lisp 15/16, ob-js 19/20...)
+one form short of providing; `org-pcomplete` 74/75. The named blockers
+left: `feature:pcomplete`, `feature:format-spec`, `rx` constructs the
+subset does not yet cover, `make-org-lint-checker` evaluation, and the
+`org-element`/`ol` evaluation gaps. The `ox-*` export family follows
+`org-element`, which reads whole and evaluates 299/340.
 
-## What the numbers mean — the ELPA work queue
+## What the numbers mean — the ELPA work queue## What the numbers mean — the ELPA work queue
 
 1. **The `compat` cascade** — compat-defun(221) + defmacro/defvar/
    defalias/guard/version/require (~300 hits) are compat's OWN wrappers,
