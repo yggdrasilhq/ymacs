@@ -535,28 +535,205 @@ otherwise tangle the buffer's org source."
               (tangle-init-org (when (buffer-file-path b)
                                  (namestring (buffer-file-path b))))))))))
 
-(defun org-agenda (&optional arg)
-  (declare (ignore arg))
-  (let ((buf (make-new-buffer "*Org Agenda*")))
-    (setf (buffer-rope buf) (rope-from-string (with-output-to-string (out)
-                                                (format out "* Agenda for ~a~%" (get-universal-time))
-                                                (dolist (b (list-all-buffers))
-                                                  (when (string= (buffer-major-mode b) "org-mode")
-                                                    (format out "** ~a~%" (buffer-name b))
-                                                    (dolist (line (split-lines (buffer-content b)))
-                                                      (when (search "TODO" line)
-                                                        (format out "   - ~a~%" line))))))))
+;;; --- Agenda (v1: TODO headlines over open org file buffers) -----------------
+;;;
+;;; The weekly view, TODO filters, and an explicit agenda-files list are
+;;; settings-system territory (build-order step 7); v1 scans every open
+;;; buffer visiting a .org file — the file-or-store law already makes
+;;; open file buffers the working set.
+
+(defvar *org-agenda-entries-by-buffer* (make-hash-table :test 'equal)
+  "Agenda buffer id -> vector of entries (buffer line todo title
+planning), aligned with the agenda buffer's entry lines (first entry
+on line 3).")
+
+(defun org-agenda-file-buffers ()
+  "Open buffers visiting .org files."
+  (loop for b in (list-all-buffers)
+        when (and (buffer-file-path b)
+                  (string-equal "org" (or (pathname-type (buffer-file-path b)) "")))
+        collect b))
+
+(defun org--planning-stamp (lines idx)
+  "The DEADLINE/SCHEDULED stamp on the planning lines under a heading
+heading at 0-based line IDX — org keeps them on the lines directly
+below the headline. Returns a short `DEADLINE: <…>' string or NIL."
+  (loop for i from (1+ idx) below (min (+ idx 3) (length lines))
+        for line = (aref lines i)
+        thereis (loop for m in '("DEADLINE" "SCHEDULED")
+                      thereis (let ((at (search m line)))
+                                (when at
+                                  (let ((lt (position #\< line :start at))
+                                        (gt (position #\> line :start at)))
+                                    (when (and lt gt)
+                                      (format nil "~a: ~a" m (subseq line lt (1+ gt))))))))))
+
+(defun org-agenda-entries ()
+  "TODO headlines across open org file buffers, in scan order: a list
+of (buffer line todo title planning). DONE items are not listed — the
+global TODO-list view that shows them is not built yet (honesty law)."
+  (let (entries)
+    (dolist (b (org-agenda-file-buffers))
+      (let* ((lines (nth-value 0 (org-scan-lines (buffer-content b))))
+             (base (file-namestring (buffer-file-path b))))
+        (loop for i from 0 below (length lines)
+              for line = (aref lines i)
+              for stars = (org-heading-stars line)
+              when stars
+                do (let ((h (org-heading-parse line (1+ i))))
+                     (when (and (org-heading-todo h)
+                                (string= (org-heading-todo h) "TODO"))
+                       (push (list b (1+ i) (org-heading-todo h)
+                                   (org-heading-title h)
+                                   (org--planning-stamp lines i)
+                                   base)
+                             entries))))))
+    (nreverse entries)))
+
+(defun org-agenda-render (entries)
+  "The agenda view text: one line per TODO headline, entries starting
+on line 3 (the jump contract with ORG-AGENDA-GOTO)."
+  (with-output-to-string (out)
+    (format out "TODO headlines in open org files (RET jump, g refresh, q quit)~%~%")
+    (if entries
+        (dolist (e entries)
+          (format out "  ~a:~a  ~a  ~a~a~%"
+                  (sixth e) (second e) (third e) (fourth e)
+                  (if (fifth e) (format nil "   ~a" (fifth e)) "")))
+        (format out "  (none — open an org file with TODO headlines)~%"))))
+
+(defun org-agenda-build ()
+  "(Re)build the *Org Agenda* view from the current org file buffers
+and select it. Returns the agenda buffer."
+  (let* ((entries (org-agenda-entries))
+         (name "*Org Agenda*")
+         (existing (find-if (lambda (b) (string= (buffer-name b) name))
+                            (list-all-buffers)))
+         (buf (or existing (make-new-buffer name ""))))
+    (setf (buffer-rope buf) (rope-from-string (org-agenda-render entries)))
+    (setf (buffer-modified-p buf) nil)
+    ;; the agenda is a VIEW: regenerated on demand, never persisted —
+    ;; same law as Info views (drop any durability row creation wrote).
+    (when *store* (ignore-errors (store-delete-buffer (buffer-id buf))))
+    (setf (gethash (buffer-id buf) *org-agenda-entries-by-buffer*)
+          (coerce entries 'vector))
+    (set-buffer-major-mode buf "org-agenda-mode")
+    (setf *current-buffer* buf)
+    (bump-document-version)
     buf))
 
-(defun org-capture (&optional template)
-  (declare (ignore template))
-  (make-new-buffer "*Org Capture*" ""))
+(defcommand org-agenda (&optional arg)
+  "M-x org-agenda — TODO headlines over every open org file buffer,
+one line each with its planning stamp. RET jumps to the source line,
+g rebuilds, q quits."
+  (interactive "P")
+  (declare (ignore arg))
+  (if (org-agenda-file-buffers)
+      (org-agenda-build)
+      (message "No org file buffers to agenda over")))
+
+(defcommand org-agenda-refresh ()
+  "Agenda g — rebuild the view from the current buffers."
+  (interactive)
+  (if (and *current-buffer*
+           (gethash (buffer-id *current-buffer*) *org-agenda-entries-by-buffer*))
+      (org-agenda-build)
+      (message "Not in an agenda view")))
+
+(defcommand org-agenda-goto ()
+  "Agenda RET — switch to the entry's source buffer at its line."
+  (interactive)
+  (let* ((buf *current-buffer*)
+         (entries (and buf (gethash (buffer-id buf)
+                                    *org-agenda-entries-by-buffer*))))
+    (if entries
+        (let* ((line (1+ (org-line-of-point buf)))   ; 1-based view line
+               (idx (- line 3))                      ; entries start on line 3
+               (entry (and (>= idx 0) (< idx (length entries))
+                           (aref entries idx))))
+          (if entry
+              (let ((src (first entry)))
+                (setf *current-buffer* src)
+                (org-goto-line src (second entry))
+                (bump-document-version)
+                (message "~a:~a" (sixth entry) (second entry)))
+              (message "No agenda entry on this line")))
+        (message "Not in an agenda view"))))
+
+(defcommand org-agenda-quit ()
+  "Agenda q — kill the view and select the next real buffer."
+  (interactive)
+  (let ((buf *current-buffer*))
+    (if (and buf (gethash (buffer-id buf) *org-agenda-entries-by-buffer*))
+        (let ((next (loop for b in (list-all-buffers)
+                          unless (or (eq b buf)
+                                     (and (buffer-name b)
+                                          (string= (buffer-name b) "*Org Agenda*")))
+                          return b)))
+          (remhash (buffer-id buf) *org-agenda-entries-by-buffer*)
+          (kill-buffer-by-id (buffer-id buf))
+          (when next
+            (setf *current-buffer* next)
+            (bump-document-version)
+            (message "Closed agenda")))
+        (message "Not in an agenda view"))))
+
+(defun org-agenda-set-keybindings ()
+  (local-set-key "org-agenda-mode" "RET" 'org-agenda-goto)
+  (local-set-key "org-agenda-mode" "g" 'org-agenda-refresh)
+  (local-set-key "org-agenda-mode" "q" 'org-agenda-quit)
+  t)
+
+(define-major-mode "org-agenda-mode"
+  :doc "Org agenda — the TODO view. RET jumps to the source headline,
+g rebuilds, q quits."
+  :hook (lambda (buf)
+          (declare (ignore buf))
+          (org-agenda-set-keybindings)))
+
+;;; --- Capture (v1: a dated TODO skeleton) ------------------------------------
+
+(defun org-format-date (ut)
+  "Org inactive-planet timestamp [YYYY-MM-DD Ddd] for a universal time."
+  (multiple-value-bind (sec min hr day mon yr dow) (decode-universal-time ut)
+    (declare (ignore sec min hr))
+    (format nil "[~4,'0d-~2,'0d-~2,'0d ~a]"
+            yr mon day
+            (nth dow '("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun")))))
+
+(defcommand org-capture (&optional template)
+  "M-x org-capture — seed the *Org Capture* org buffer with a dated
+TODO skeleton (TEMPLATE text, if given, becomes the subject). Point
+lands on the subject slot; save the buffer wherever the note belongs —
+a capture-target config is settings step 7 territory."
+  (interactive "sCapture subject: ")
+  (let* ((name "*Org Capture*")
+         (existing (find-if (lambda (b) (string= (buffer-name b) name))
+                            (list-all-buffers)))
+         (buf (or existing (make-new-buffer name ""))))
+    (unless existing
+      (set-buffer-major-mode buf "org-mode"))
+    (let* ((stamp (format nil "* TODO ~a ~a~%  ~%"
+                          (org-format-date (get-universal-time))
+                          (or template "")))
+           (at (length (buffer-content buf))))
+      (buffer-insert buf at stamp)
+      ;; point on the subject slot, right after the timestamp + space
+      (setf (buffer-point buf) (+ at 1
+                                  (length "* TODO ")
+                                  (length (org-format-date (get-universal-time)))
+                                  1))
+      (bump-document-version))
+    buf))
 
 (defun org-tangle (file)
   (tangle-init-org file))
 
 ;; Babel
-(defun org-babel-tangle (&optional arg)
+(defcommand org-babel-tangle (&optional arg)
+  "Tangle the current buffer's org source blocks."
+  (interactive "P")
   (declare (ignore arg))
   (when *current-buffer*
-    (tangle-init-org (when (buffer-file-path *current-buffer*) (namestring (buffer-file-path *current-buffer*))))))
+    (tangle-init-org (when (buffer-file-path *current-buffer*)
+                       (namestring (buffer-file-path *current-buffer*))))))

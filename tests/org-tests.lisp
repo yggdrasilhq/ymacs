@@ -255,6 +255,53 @@ body
                (org-assert-equal t (buffer-modified-p buf))))
         (kill-buffer (buffer-id buf)))))
 
+  (org-test "agenda collects TODO headlines with planning stamps"
+    (let ((path "tests/.agenda-fixture.org"))
+      (with-open-file (s path :direction :output :if-exists :supersede)
+        (format s "* notes~%** TODO pay invoice~%  DEADLINE: <2026-09-15 Tue>~%** DONE old~%* scratch~%"))
+      (unwind-protect
+           (let ((src (open-file-buffer path)))
+             (unwind-protect
+                  (let ((agenda (org-agenda)))
+                    (unwind-protect
+                         (progn
+                           ;; exactly the fixture's TODO headline, not DONE,
+                           ;; not keyword-less prose
+                           (let ((entries (gethash (buffer-id agenda)
+                                                   *org-agenda-entries-by-buffer*))
+                                 (mine (loop for e across (gethash (buffer-id agenda)
+                                                                  *org-agenda-entries-by-buffer*)
+                                             when (string= "pay invoice" (fourth e))
+                                             collect e)))
+                             (org-assert-equal t (and entries t))
+                             (org-assert-equal 1 (length mine))
+                             (let ((e (first mine)))
+                               (org-assert-equal 2 (second e))
+                               (org-assert-equal "TODO" (third e))
+                               ;; the DEADLINE planning line came along
+                               (org-assert-equal t (and (search "DEADLINE: <2026-09-15 Tue>" (fifth e)) t))
+                               (org-assert-equal ".agenda-fixture.org" (sixth e)))
+                             ;; RET jumps to the source headline line
+                             (setf (buffer-point agenda)
+                                   (org-point-at-line agenda 2))
+                             (org-agenda-goto)
+                             (org-assert-equal (buffer-id src) (buffer-id *current-buffer*))
+                             (org-assert-equal 2 (1+ (org-line-of-point *current-buffer*)))))
+                      (kill-buffer-by-id (buffer-id agenda))))
+                (kill-buffer-by-id (buffer-id src))))
+        (ignore-errors (delete-file path)))))
+
+  (org-test "capture seeds a dated TODO in an org-mode buffer"
+    (unwind-protect
+         (let ((buf (org-capture "invoice")))
+           (let ((text (buffer-content buf)))
+             (org-assert-equal t (and (search "* TODO [" text) t))
+             (org-assert-equal t (and (search "invoice" text) t))
+             (org-assert-equal "org-mode" (buffer-major-mode buf))))
+      (let ((cap (find-if (lambda (b) (string= (buffer-name b) "*Org Capture*"))
+                          (list-all-buffers))))
+        (when cap (kill-buffer-by-id (buffer-id cap))))))
+
   (format t "ymacs org node contract tests: ~a passed, ~a failed~%"
           *org-test-pass* *org-test-fail*)
   (zerop *org-test-fail*))
