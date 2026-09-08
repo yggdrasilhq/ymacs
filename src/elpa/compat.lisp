@@ -239,6 +239,104 @@
   ;; bindings by the chord string itself, so KBD returns it unchanged.
   keys)
 
+;;; --- Expansion machinery primitives (the macroexp collision rung) -----------
+;;; The measure env must never let an elisp name fall through to an
+;;; inherited CL symbol: bare `format' resolving to CL:FORMAT (destination
+;;; first!) is what broke inline.el's `%s--inliner' name construction and,
+;;; through it, org-element-ast's define-inline forms — the 2026-09-08
+;;; root cause of the macroexpand collision. These primitives exist so
+;;; macroexp.el's macroexpand-1/macroexpand-all run with elisp semantics.
+
+(defun elisp/format (control &rest args)
+  "Elisp FORMAT: the control string is always the first argument and
+the result is always a string — never CL:FORMAT's destination-first
+shape. Directives are CL-compatible enough for corpus use (%s %d %c
+%%)."
+  (apply #'format nil control args))
+
+(defun elisp/function-put (func prop value)
+  "Elisp FUNCTION-PUT v0: function properties live on the symbol;
+autoload indirection is not modelled."
+  ;; NB: `put' is the elisp name — CL sets properties through GET's setf
+  ;; expander; a bare (put …) here interns an undefined YMACS::PUT.
+  (setf (get func prop) value))
+
+(defun elisp/function-get (sym prop)
+  "Elisp FUNCTION-GET v0: read the property the same place
+ELISP/FUNCTION-PUT wrote it."
+  (get sym prop))
+
+(defun elisp/indirect-function (func)
+  "Elisp INDIRECT-FUNCTION v0: a symbol resolves to its function
+binding when bound, otherwise it is itself; autoload loading is not
+modelled."
+  (if (and (symbolp func) (fboundp func))
+      (symbol-function func)
+      func))
+
+(defun elisp/special-form-p (sym)
+  "Elisp SPECIAL-FORM-P over CL's special operators."
+  (and (symbolp sym) (special-operator-p sym)))
+
+(defun elisp/macrop (object)
+  "Elisp MACROP: a symbol with a macro function."
+  (and (symbolp object) (not (null (macro-function object)))))
+
+(defun elisp/seq-do-indexed (function sequence)
+  "Elisp SEQ-DO-INDEXED: call FUNCTION with each element and its
+0-based index; returns nil."
+  (let ((i 0))
+    (dolist (x (coerce sequence 'list) nil)
+      (funcall function x i)
+      (incf i))))
+
+(defun elisp/assq (key alist)
+  "Elisp ASSQ: ASSOC with `eq'."
+  (assoc key alist :test #'eq))
+
+(defun elisp/plist-put (plist prop value)
+  "Elisp PLIST-PUT: set PROP to VALUE (matched with `eq'), appending
+when absent; returns the plist."
+  (loop for cell on (the list plist)
+        do (when (eq (first cell) prop)
+             (setf (second cell) value)
+             (return-from elisp/plist-put plist)))
+  (append plist (list prop value)))
+
+(defun elisp/autoload-do-load (fndef &optional funname)
+  "Elisp AUTOLOAD-DO-LOAD v0: when FUNNAME carries a recorded autoload
+and the env wired `*autoload-file-loader*', load that file and return
+the fresh definition; otherwise pass FNDEF through untouched."
+  (declare (ignore fndef))
+  (when (and (symbolp funname)
+             (gethash funname *elisp-autoloads*)
+             *autoload-file-loader*)
+    (funcall *autoload-file-loader* (gethash funname *elisp-autoloads*)))
+  (if (and (symbolp funname) (fboundp funname))
+      (symbol-function funname)
+      funname))
+
+(defun elisp/make-hash-table (&rest options)
+  "Elisp MAKE-HASH-TABLE v0: :test understands the elisp test names
+\(read into :ymacs-elisp, so compare by symbol-name) and CL function
+objects; :size, :rehash-size, :rehash-threshold are accepted. :weakness
+is accepted and IGNORED — weak tables are not modelled, so v0 tables
+hold strong references (macroexp.el's `macroexp--warned' table needs
+exactly this to load)."
+  (let ((test nil) (rest options))
+    (loop
+      (when (null rest) (return))
+      (let ((k (pop rest)) (v (pop rest)))
+        (when (eq k :test) (setf test v))))
+    (let ((name (and (symbolp test) (symbol-name test))))
+      (make-hash-table
+       :test (cond ((null test) #'eql)
+                   ((functionp test) test)
+                   ((and name (string= name "EQ")) #'eq)
+                   ((and name (string= name "EQUAL")) #'equal)
+                   ((and name (string= name "EQUALP")) #'equalp)
+                   (t #'eql))))))
+
 (defun elisp/set-keymap-parent (map parent)
   (when (and (elisp-keymap-p map) (or (null parent) (elisp-keymap-p parent)))
     (setf (elisp-keymap-parent map) parent))
