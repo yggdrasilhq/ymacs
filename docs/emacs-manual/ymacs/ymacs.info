@@ -196,11 +196,28 @@ installation script puts the built manual where the daemon finds it.
 ‘M-x info <RET>’
      Open the Ymacs manual.
 
-   Inside the manual buffer: ‘n’ next node, ‘p’ previous node, ‘u’ up,
-‘RET’ follow the menu/reference under point, ‘l’ back in the history,
-‘q’ quit the manual window.  The reader follows the Emacs Info interface
-so the fingers transfer; where it deliberately diverges, the divergence
-ledger says so.
+   Inside the manual buffer:
+
+‘n / p’
+     The Next / previous node of the header spine.
+‘u’
+     The Up node; ‘(dir)’ references stop politely at the manual root.
+‘t’
+     The Top node.
+‘<RET>’
+     Follow the menu entry or ‘*note’ cross reference under point.
+‘l’
+     Step back through this view's node history.
+‘s’
+     Search forward through the manual's nodes (case insensitive).
+‘<SPC> / <DEL>’
+     Scroll a screen down / up; with the node end already visible, <SPC>
+     advances to the Next node.
+‘q’
+     Quit: kill the manual view and select the next real buffer.
+
+   The reader follows the Emacs Info interface so the fingers transfer;
+where it deliberately diverges, the divergence ledger says so.
 
 
 Tag Table:

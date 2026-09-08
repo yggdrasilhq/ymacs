@@ -229,10 +229,29 @@ where the daemon finds it.
 Open the Ymacs manual.
 @end table
 
-Inside the manual buffer: @kbd{n} next node, @kbd{p} previous node,
-@kbd{u} up, @kbd{RET} follow the menu/reference under point,
-@kbd{l} back in the history, @kbd{q} quit the manual window. The
-reader follows the Emacs Info interface so the fingers transfer; where
-it deliberately diverges, the divergence ledger says so.
+Inside the manual buffer:
+
+@table @kbd
+@item n / p
+The Next / previous node of the header spine.
+@item u
+The Up node; @code{(dir)} references stop politely at the manual root.
+@item t
+The Top node.
+@item @key{RET}
+Follow the menu entry or @code{*note} cross reference under point.
+@item l
+Step back through this view's node history.
+@item s
+Search forward through the manual's nodes (case insensitive).
+@item @key{SPC} / @key{DEL}
+Scroll a screen down / up; with the node end already visible,
+@key{SPC} advances to the Next node.
+@item q
+Quit: kill the manual view and select the next real buffer.
+@end table
+
+The reader follows the Emacs Info interface so the fingers transfer;
+where it deliberately diverges, the divergence ledger says so.
 
 @bye
