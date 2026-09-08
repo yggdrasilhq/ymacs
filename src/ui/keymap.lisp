@@ -31,6 +31,7 @@
   (global-set-key "C-x C-f" 'find-file)
   (global-set-key "C-x C-s" 'save-buffer)
   (global-set-key "C-x C-b" 'switch-to-buffer)
+  (global-set-key "C-c a" 'org-agenda)
   (global-set-key "C-x C-k" 'kill-buffer)
   (global-set-key "C-x b" 'consult-buffer)
   (global-set-key "C-x k" 'kill-buffer)
@@ -57,7 +58,7 @@
   (global-set-key "C-x 5 2" 'make-frame)
   (global-set-key "C-x 5 0" 'delete-frame)
   (which-key-register-prefix "C-x" '(("C-f" . "find file") ("C-s" . "save") ("C-b" . "switch buffer") ("C-k" . "kill buffer") ("b" . "consult buffer") ("k" . "kill buffer") ("u" . "undo")))
-  (which-key-register-prefix "C-c" '(("s" . "toggle sidebar") ("p" . "project") ("o" . "outline") ("c" . "comment")))
+  (which-key-register-prefix "C-c" '(("a" . "org agenda") ("s" . "toggle sidebar") ("p" . "project") ("o" . "outline") ("c" . "comment")))
   t)
 
 (init-default-keymaps)
