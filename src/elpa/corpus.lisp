@@ -102,7 +102,17 @@
     (car-safe elisp/car-safe) (file-name-directory elisp/file-name-directory)
     (make-syntax-table elisp/make-syntax-table)
     (make-char-table elisp/make-char-table) (make-composed-keymap elisp/make-composed-keymap)
-    (display-graphic-p elisp/display-graphic-p)))
+    (display-graphic-p elisp/display-graphic-p)
+    ;; the macroexp collision rung (2026-09-08): bare `format' falling
+    ;; through to CL:FORMAT broke inline.el's expansion machinery; these
+    ;; bind the elisp primitives macroexp.el/inline.el machinery needs.
+    (format elisp/format) (function-put elisp/function-put)
+    (function-get elisp/function-get) (indirect-function elisp/indirect-function)
+    (special-form-p elisp/special-form-p) (macrop elisp/macrop)
+    (make-hash-table elisp/make-hash-table)
+    (seq-do-indexed elisp/seq-do-indexed)
+    (assq elisp/assq) (plist-put elisp/plist-put)
+    (autoload-do-load elisp/autoload-do-load)))
 
 (defparameter *measure-macro-bindings*
   '((defcustom elisp/defcustom) (use-package ymacs-use-package)
@@ -237,6 +247,13 @@
       (let ((sym (measure-elisp-symbol (string-upcase (car v)) el)))
         (proclaim `(special ,sym))
         (setf (symbol-value sym) (cdr v))))
+    ;; elisp reads an UNSET variable as nil; CL signals unbound-variable.
+    ;; Internals the corpus's expansion machinery relies on but never
+    ;; defvars (macroexp.el's macroexp--dynvars) get the elisp default.
+    (dolist (name '("MACROEXP--DYNVARS"))
+      (let ((sym (measure-elisp-symbol name el)))
+        (proclaim `(special ,sym))
+        (unless (boundp sym) (setf (symbol-value sym) nil))))
     ;; cl-lib is provided by the shipped image (CL itself is the cl-lib
     ;; implementation — the same stance modern-helpers.lisp blesses), and
     ;; subr-x by defmacros.lisp's macro family. Canonical-name push: the
@@ -315,8 +332,36 @@
   (let ((sym (and (find-package :sb-ext)
                   (find-symbol (string :*evaluator-mode*) :sb-ext))))
     (if (and sym (boundp sym))
-        (progv (list sym) (list :interpret) (eval form))
-        (eval form))))
+        (progv (list sym) (list :interpret) (eval (measure-normalize-elisp-if form)))
+        (eval (measure-normalize-elisp-if form)))))
+
+(defun measure-normalize-elisp-if (form)
+  "Elisp `if' takes MULTIPLE else forms; CL's takes at most one —
+SBCL's interpreted IF rejects the extra branches with a
+program-destructuring-bind arity error (macroexp--expand-all's
+three-branch else died exactly so). Rewrite any `if' with more than
+test/then/else into the equivalent `cond', deep. `quote' data and
+reader `quasiquote' templates are left untouched (a template's `if'
+is data until the macro's expansion function runs); the walk is a
+cons-walk, so dotted structures pass through untouched."
+  (cond
+    ((atom form) form)
+    ((and (symbolp (car form))
+          (member (symbol-name (car form)) '("QUOTE" "QUASIQUOTE")
+                  :test #'string=))
+     form)
+    (t
+     (let* ((head (measure-normalize-elisp-if (car form)))
+            (rest (measure-normalize-elisp-if (cdr form)))
+            (new (cons head rest)))
+       (if (and (symbolp head)
+                (string= (symbol-name head) "IF")
+                (>= (length new) 5))
+           (let ((test (second new))
+                 (then (third new))
+                 (elses (nthcdr 3 new)))
+             `(cond (,test ,then) (t ,@elses)))
+           new)))))
 
 (defun measure-form (form)
   "Evaluate one form; NIL on success, else (:missing X) / (:error note)."

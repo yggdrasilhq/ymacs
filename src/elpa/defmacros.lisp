@@ -294,6 +294,13 @@ Elisp leaves those to the keymap variable's own definition."
   (setf (fdefinition sym)
         (cond ((functionp def) def)
               ((and (symbolp def) (fboundp def)) (fdefinition def))
+              ;; elisp defalias is LATE-BOUND for symbols: an alias of a
+              ;; not-yet-defined function resolves at call time (macroexp.el
+              ;; defaliases macroexp--warn-and-return six lines BEFORE its
+              ;; target's defun; org files alias the same way). A trampoline
+              ;; preserves that forward-reference semantics under CL.
+              ((symbolp def)
+               (lambda (&rest args) (apply def args)))
               (t (error "defalias: ~a does not name a function" def))))
   sym)
 

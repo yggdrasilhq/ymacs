@@ -172,6 +172,26 @@
                                 (declare (ignore stream sub-char numarg))
                                 '|##|)
                               *elisp-readtable*)
+;; elisp sharp-quote is LATE-BOUND: #'sym is the symbol itself — the
+;; function cell resolves at call time — while CL's #'sym demands the
+;; fdefinition exist at evaluation. The eager reading broke forward
+;; references (macroexp.el line-175 defaliases macroexp-warn-and-return
+;; six lines before its defun). #'sym therefore reads as the symbol;
+;; #'(lambda …) still needs a real function object for CL's funcall/mapcar,
+;; so it reads as (function (lambda …)).
+(set-dispatch-macro-character #\# #\'
+                              (lambda (stream sub-char numarg)
+                                (declare (ignore sub-char numarg))
+                                (let ((next (read stream t nil t)))
+                                  (if (and (consp next)
+                                           (symbolp (first next))
+                                           (string= (symbol-name (first next)) "LAMBDA"))
+                                      (list 'function next)
+                                      ;; (quote sym) — evals to the symbol, so the
+                                      ;; designator stays LATE-BOUND (eval of the bare
+                                      ;; symbol would look up a VARIABLE).
+                                      (list 'quote next))))
+                              *elisp-readtable*)
 ;; elisp bool-vector literal #&[SIZE]"STRING" (ansi-color's init data)
 ;; — v0 unpacks to a simple bit vector, MSB-first per byte (the elisp
 ;; packed representation). The bool-vector function family is future

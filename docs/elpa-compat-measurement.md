@@ -1,14 +1,29 @@
 # ELPA Compatibility — Measured (spec-primitives §5 step 8)
 
-**Headline (2026-09-08, org ladder wave VI): 85 of 212 corpus files
-load fully; 11386 of 12883 forms (88.4%) evaluate. dash READS WHOLE
-now (339/360) — the reader treated elisp `|` symbols as CL
-multi-escapes, silently swallowing whole files — and the
-file-position byte/char drift from multibyte input is gone (forms now
-read from the decoded string). Depth-0 is down to TWO files, both
-tokenizer-project territory: org-table (`1e999` float overflow —
-elisp reads it as infinity, CL cannot) and org-duration (mid-token
-colons).**
+**Headline (2026-09-08, modes-finish wave): 99 of 212 corpus files
+load fully; 11548 of 12883 forms (89.6%) evaluate. THE MACROEXPAND
+COLLISION IS RESOLVED — the recorded top blocker was never a
+macroexpand design problem: elisp names were FALLING THROUGH to
+inherited CL symbols in the measure env. Bare `format` resolving to
+CL:FORMAT (destination-first) killed inline.el's `%s--inliner` name
+construction; macroexp.el's machinery additionally needed
+function-get/function-put/indirect-function/macrop/special-form-p,
+`make-hash-table :weakness`, autoload-do-load, seq-do-indexed, assq
+and plist-put. macroexp.el went 44/46 depth-0 → 46/46 depth-2,
+inline.el is 22/22 depth-2, org-element-ast rose 35→40/48. Landed
+with it: elisp sharp-quote is LATE-BOUND (reads as the quoted symbol,
+so forward references like macroexp.el's line-175 defalias work),
+elisp multi-else `if` normalizes to `cond` under the interpreter, and
+defalias of a not-yet-defined symbol installs a call-time trampoline.
+Next blocker: org-element-ast's last 8 forms die on "invalid number
+of arguments: 3" — one arg-shape divergence class to name.**
+Historical (ladder VI): dash READS WHOLE (340/360) — the reader
+treated elisp `|` symbols as CL multi-escapes, silently swallowing
+whole files — and the file-position byte/char drift from multibyte
+input is gone (forms now read from the decoded string). Depth-0 is
+down to TWO files, both tokenizer-project territory: org-table
+(`1e999` float overflow — elisp reads it as infinity, CL cannot) and
+org-duration (mid-token colons).
 The first measurement (2026-09-03) put this at 1 file
 / 797 of 1944 (41%) and retired the old "~90%"; the 2026-09-04 wave
 then landed the definition-form family and the reader gaps it pointed
