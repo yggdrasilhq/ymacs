@@ -17,6 +17,11 @@
   value-key
   ;; Revision guard: mtime_ms:size at load/save (yedit's disk_revision).
   loaded-revision
+  ;; Rendering law (docs/spec-rendering.md): the projection producer and
+  ;; its cache. The buffer text stays the document; these are the VIEW's.
+  prose-producer
+  prose-cache-key
+  prose-cache-value
   created-at)
 
 (defvar *buffers* (make-hash-table :test 'equal))

@@ -58,6 +58,7 @@
                              (:file "modeline")
                              (:file "keyboard")
                              (:file "info")
-                             (:file "startup")))
+                             (:file "startup")
+                             (:file "rendered")))
                (:file "full-emacs")
                (:file "main")))

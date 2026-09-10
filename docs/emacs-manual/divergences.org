@@ -152,3 +152,32 @@ cost.
   startup (the pre-D10 ymacs law), or =*scratch*= as the selected
   buffer on a plain boot, breaks; the extension points are
   =ymacs-splash-ensure= and the =startup-mode= keymap.
+
+* D11 — Capable buffers render as prose by default [adopted 2026-09-10]
+
+- Emacs node: (emacs) Text Display / (elisp) Faces
+- What: a buffer whose major mode declares a rich parser (info-mode,
+  org-mode today) renders through a CommonMark projection — the host
+  markdown widget — when the buffer-local minor mode =rendered-mode= is
+  on (=global-rendered-mode= arms it by default). Raw text is the minor
+  mode off; typing in a rendered view drops to raw first (reading rich,
+  editing raw). The buffer text stays the document: point, mark and
+  undo live in the raw text always.
+- Why: the owner asked for the manual (and org) to READ rich out of the
+  box while the Emacs mode/knob vocabulary stays; decided via consult
+  (gemini-3.8-flash-high) and docs/spec-rendering.md is the SSOT.
+- Compat cost: elisp reading the buffer text gets the raw text (the
+  projection is view-only, never written back); point-based commands in
+  a rendered view act on node state instead of pixel position.
+
+* D12 — The mode line lives in the ribbon strip [adopted 2026-09-10]
+
+- Emacs node: (emacs) Mode Line
+- What: the mode line renders as the ribbon strip label (mode names
+  included) and the ribbon gains a Rendered/Raw toggle group on capable
+  buffers; the strip ellipsizes instead of clipping (the shell-side
+  max-width fix, lane/yggterm/prose-pane).
+- Why: the host renders one top strip; a text modeline row would cost
+  viewport height the ribbon already spends (owner directive 2026-09-10).
+- Compat cost: elisp constructing mode-line strings has no reader; the
+  ymacs surface is =rendering-mode-tag= + =rendering-ribbon-group=.
