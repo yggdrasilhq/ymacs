@@ -1,15 +1,35 @@
 #!/bin/sh
 # ymacs — launcher for SBCL image or interpreted mode
-# Prefers built binary at ~/.local/bin/ymacs-bin if present, else runs via sbcl --load
+# Prefers built binary at ~/.local/bin/ymacs-bin if present, else runs the
+# package's own source tree. Resolve symlinks because ynpm publishes a
+# generation through ~/.local/bin/ymacs.
 set -e
 BIN="$HOME/.local/bin/ymacs-bin"
 if [ -x "$BIN" ]; then
   exec "$BIN" "$@"
 fi
+
+SOURCE="$0"
+case "$SOURCE" in
+  */*) ;;
+  *) SOURCE="$(command -v -- "$SOURCE")" ;;
+esac
+while [ -L "$SOURCE" ]; do
+  SOURCE_DIR="$(CDPATH= cd -- "$(dirname -- "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  case "$SOURCE" in
+    /*) ;;
+    *) SOURCE="$SOURCE_DIR/$SOURCE" ;;
+  esac
+done
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SOURCE")" && pwd)"
+PACKAGE_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+export YMACS_PACKAGE_ROOT="$PACKAGE_ROOT"
+
 # Interpreted fallback: load system via ASDF
 exec sbcl --noinform --disable-debugger --no-sysinit --no-userinit \
   --eval '(require :asdf)' \
-  --eval '(push (truename ".") asdf:*central-registry*)' \
-  --eval '(push (truename "src/") asdf:*central-registry*)' \
+  --eval '(push (truename (uiop:getenv "YMACS_PACKAGE_ROOT")) asdf:*central-registry*)' \
+  --eval '(push (truename (format nil "~a/src/" (uiop:getenv "YMACS_PACKAGE_ROOT"))) asdf:*central-registry*)' \
   --eval '(asdf:load-system :ymacs)' \
   --eval '(ymacs:main)' -- "$@"

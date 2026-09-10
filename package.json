@@ -5,6 +5,28 @@
   "bin": {
     "ymacs": "bin/ymacs"
   },
+  "yggterm": {
+    "app": {
+      "name": "ymacs",
+      "binary": "ymacs",
+      "label": "Ymacs",
+      "icon": "Ξ",
+      "keytip": "y",
+      "verbs": [
+        {
+          "id": "open",
+          "label": "Open Ymacs",
+          "args": [],
+          "row_spawn": true
+        }
+      ],
+      "context_menu": {
+        "enabled": true,
+        "contexts": ["workspace", "session"],
+        "verbs": ["open"]
+      }
+    }
+  },
   "files": [
     "bin/",
     "src/",

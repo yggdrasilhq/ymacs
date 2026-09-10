@@ -25,6 +25,11 @@
 
 ## Quick Start
 
+```sh
+curl -fsSL https://raw.githubusercontent.com/yggdrasilhq/yggterm/main/scripts/install.sh | sh
+ynpx @ygghq/ymacs
+```
+
 ### Running ymacs
 ```bash
 # Launch interactive ymacs session
