@@ -90,7 +90,8 @@ called at create and after every command (command-execute), so no work
 is ever only in memory. No-op until the store is open (unit tests,
 --help), so tests never touch the disk store."
   (when *store*
-    (unless (and (fboundp 'info-buffer-p) (info-buffer-p buf))
+    (unless (or (and (fboundp 'info-buffer-p) (info-buffer-p buf))
+                (and (fboundp 'splash-buffer-p) (splash-buffer-p buf)))
       (ignore-errors
        (if (buffer-file-path buf)
            (store-put-draft (buffer-file-path buf) (buffer-content buf))

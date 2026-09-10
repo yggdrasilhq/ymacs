@@ -216,7 +216,13 @@ chords never self-insert)."
   "Insert the typed character COUNT times at point."
   (interactive "p
 c")
-  (when (and *current-buffer* ch)
+  (cond
+    ;; The startup screen is a read-only view (GNU's splash never takes
+    ;; typing either) — refuse with a message, never insert.
+    ((and *current-buffer* (fboundp 'splash-buffer-p)
+          (splash-buffer-p *current-buffer*))
+     (message "The startup screen is read-only"))
+    ((and *current-buffer* ch)
     ;; WITH undo — pixel-verification caught plain insert here: typing was
     ;; not undoable (C-/ on a fresh keystroke answered "no further undo").
     (buffer-insert-with-undo *current-buffer*
@@ -224,7 +230,7 @@ c")
                    (make-string count :initial-element ch))
     (setf (buffer-point *current-buffer*)
           (keyboard-clamp-point (+ (buffer-point *current-buffer*) count)))
-    t))
+    t)))
 
 (defcommand universal-argument (&optional (count 4))
   "C-u: begin a numeric prefix argument; consecutive C-u's multiply.

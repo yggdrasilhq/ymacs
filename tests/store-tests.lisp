@@ -123,7 +123,9 @@
       (assert-eq* nil (store-get-draft "/tmp/ymacs-store-test.txt"))
       (store-close)))
 
-  ;; 5. boot law: manual + scratchpad-01, manual active, create-once.
+  ;; 5. boot law: startup screen + scratchpad-01, splash active,
+  ;; create-once; the manual is NOT force-opened (D10 law 2026-09-10)
+  ;; — the splash opens it (RET on its link / C-h r / M-x info).
   (let* ((dir (sb-dir))
          (*store-path-override* (sb-store-path "boot"))
          (*store* nil)
@@ -131,7 +133,7 @@
          (*current-buffer* nil)
          (*recent-files* nil)
          (manual (merge-pathnames "manual.org" dir)))
-    (stest "the boot law: manual + scratchpad-01, manual active"
+    (stest "the boot law: splash + scratchpad-01, splash active, manual not opened"
       (ensure-directories-exist dir)
       (with-open-file (s manual :direction :output :if-exists :supersede
                                 :external-format :utf-8)
@@ -141,11 +143,8 @@
         (ensure-boot-buffers)
         (assert-eq* t (some (lambda (b) (string= "*scratchpad-01*" (buffer-name b)))
                             (list-all-buffers)))
-        (assert-eq* t (not (null *current-buffer*)))
-        (assert-eq* t (and (buffer-file-path *current-buffer*)
-                           (not (null (search "manual"
-                                              (namestring (buffer-file-path *current-buffer*))
-                                              :test #'string-equal)))))
+        (assert-eq* t (and (splash-buffer-p *current-buffer*) t))
+        (assert-eq* nil (find-if #'buffer-file-path (list-all-buffers)))
         (ensure-boot-buffers)
         (assert-eq* 2 (hash-table-count *buffers*))
         (store-close))

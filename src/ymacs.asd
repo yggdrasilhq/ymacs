@@ -57,6 +57,7 @@
                              (:file "minibuffer")
                              (:file "modeline")
                              (:file "keyboard")
-                             (:file "info")))
+                             (:file "info")
+                             (:file "startup")))
                (:file "full-emacs")
                (:file "main")))
