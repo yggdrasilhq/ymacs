@@ -18,6 +18,13 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Build packaged image
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends sbcl
+          sbcl --noinform --disable-debugger --no-sysinit --no-userinit --load build.lisp
+          cp ymacs-bin bin/ymacs-bin
+          chmod 755 bin/ymacs-bin
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

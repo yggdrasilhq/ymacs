@@ -1,11 +1,21 @@
 {
   "name": "@ygghq/ymacs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ymacs - GNU Emacs fork on libyggterm in Common Lisp",
   "bin": {
-    "ymacs": "bin/ymacs"
+    "ymacs": "bin/ymacs",
+    "ymacs-bin": "bin/ymacs-bin"
+  },
+  "ynpm": {
+    "build": "sbcl --noinform --disable-debugger --no-sysinit --no-userinit --load build.lisp && cp ymacs-bin bin/ymacs-bin",
+    "bins": {
+      "ymacs": "bin/ymacs",
+      "ymacs-bin": "bin/ymacs-bin"
+    },
+    "watch": "@ygghq/ymacs"
   },
   "yggterm": {
+    "schema": 1,
     "app": {
       "name": "ymacs",
       "binary": "ymacs",
