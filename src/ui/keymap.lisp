@@ -38,6 +38,7 @@
   (global-set-key "C-s" 'isearch-forward)
   (global-set-key "C-r" 'isearch-backward)
   (global-set-key "M-x" 'execute-extended-command)
+  (global-set-key "C-h r" 'info)
   (global-set-key "C-g" 'keyboard-quit)
   (global-set-key "C-/" 'undo)
   (global-set-key "C-y" 'yank)

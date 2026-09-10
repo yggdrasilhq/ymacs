@@ -126,8 +126,9 @@
 the test override, $YMACS_MANUAL_PATH, the installed share
 (~/.local/share/ymacs/manual.org — install.sh puts it there), the docs/
 sibling of the shipped book the settings schema resolved to, the daemon
-cwd's docs/manual.org. NIL when unreachable — the daemon then falls
-back to *scratch*."
+cwd's docs/manual.org. NIL when unreachable. The BOOT no longer
+force-opens the manual (startup screen law 2026-09-10, divergences.org
+D10); this path stays for tests and future entry points."
   (or (and *ymacs-manual-path-override*
            (probe-file *ymacs-manual-path-override*)
            *ymacs-manual-path-override*)
@@ -157,31 +158,32 @@ memory-only buffers, so scratch text survives crashes.")
 ;; ever lost. The daemon is perpetual — M-x sidebar/profiles switches
 ;; profile, M-x save-buffers-kill-ymacs is the only way it ends.
 ;;
-;; Quick start:  M-x command palette · C-x C-f find file · C-c s Buffers
-;;               M-x info  The Ymacs Manual (this session booted with it)
+;; Quick start:  C-h r  The Ymacs Manual (Info) | M-x command palette
+;;               C-x C-f find file | C-x b buffers
 ")
 
 (defun ensure-boot-buffers ()
-  "Boot law: the session opens with TWO buffers — the manual (active)
-and *scratchpad-01* — both durable (manual = file; scratchpad = store
-row). A restored session that already holds them is left untouched."
+  "Boot law: a FRESH session opens with the startup screen (*GNU
+Ymacs*, a view buffer) ACTIVE plus *scratchpad-01* (store row). The
+manual is NOT force-opened any more — the startup screen opens it
+(RET on its link, or C-h r / M-x info anywhere). A restored session
+is left untouched (divergences.org D10: GNU shows the splash on every
+plain start; the ymacs daemon is perpetual, so fresh boots only)."
   ;; scratchpad: create-once (store row keyed by name-id survives; the
   ;; restore above may already have brought it back).
   (unless (find-if (lambda (b) (string= (buffer-name b) *scratchpad-name*))
                    (list-all-buffers))
     (make-new-buffer *scratchpad-name* *scratchpad-seed*))
-  ;; manual: open as a file buffer when reachable and not already open.
-  (let ((manual (ignore-errors (ymacs-manual-path))))
-    (when manual
-      (unless (find-buffer-by-path manual)
-        (ignore-errors (open-file-buffer manual)))))
-  ;; first boot (nothing restored): the manual is what the user sees.
-  (let ((manual-buf (find-if (lambda (b)
-                               (and (buffer-file-path b)
-                                    (search "manual" (namestring (buffer-file-path b))
-                                            :test #'string-equal)))
-                             (list-all-buffers))))
-    (setf *current-buffer* (or manual-buf *current-buffer* (first (list-all-buffers)))))
+  ;; Fresh boot (no restored file-backed work): the startup screen is
+  ;; what the user sees. Create-once; never durable (the Info view law).
+  (let ((fresh (not (some #'buffer-file-path (list-all-buffers)))))
+    (when (and fresh (fboundp 'ymacs-splash-ensure))
+      (ymacs-splash-ensure)
+      (let ((splash (ymacs-splash-buffer)))
+        (when splash
+          (setf *current-buffer* splash)))))
+  (unless *current-buffer*
+    (setf *current-buffer* (first (list-all-buffers))))
   *current-buffer*)
 
 (defun run-daemon ()

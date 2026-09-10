@@ -88,7 +88,8 @@
 
   (test "boot never hijacks a live session (store closed, no writes)"
     ;; ensure-boot-buffers with no store open and no manual override
-    ;; creates only the scratchpad when the session is empty.
+    ;; creates the scratchpad and the startup screen (create-once) when
+    ;; the session is empty; a second call changes nothing.
     (let* ((*buffers* (make-hash-table :test 'equal))
            (*current-buffer* nil)
            (*ymacs-manual-path-override* "/nonexistent/manual.org"))

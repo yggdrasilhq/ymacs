@@ -130,3 +130,25 @@ cost.
   configurations, or expects =tool-bar-mode= to toggle icons, breaks;
   the ymacs =tab-bar-*= API (add/remove tabs, groups, buttons) is the
   extension point instead.
+
+* D10 — The startup screen shows on fresh boots, not every start [adopted 2026-09-10]
+
+- Emacs node: (emacs) Initial Options / (emacs) Startup
+- What: ymacs has a GNU-Emacs-style splash (*GNU Ymacs*): ASCII logo,
+  version/copyright block, link bullets (The Ymacs Manual -> Info;
+  Visit New File), TAB/S-TAB walk the links, RET activates the link on
+  the cursor line, q leaves for the next real buffer; C-h r reads The
+  Ymacs Manual from anywhere (Emacs habit, same binding). The screen
+  is a read-only view buffer. DIVERGENCE: GNU shows it on every plain
+  start and boot leaves *scratch*; ymacs's daemon is perpetual, so the
+  screen shows on FRESH daemon boots only — a restored session is left
+  untouched, and boot no longer force-opens docs/manual.org (the
+  screen opens the manual: RET on its link, or C-h r / M-x info).
+- Why: the Emacs welcome screen is the user's front door (owner
+  request 2026-09-10, board ACK-83f10bee0f); with a perpetual daemon
+  "every start" does not exist — the honest equivalent of GNU's plain
+  start is a fresh daemon boot.
+- Compat cost: Elisp expecting a manual file buffer selected after
+  startup (the pre-D10 ymacs law), or =*scratch*= as the selected
+  buffer on a plain boot, breaks; the extension points are
+  =ymacs-splash-ensure= and the =startup-mode= keymap.
