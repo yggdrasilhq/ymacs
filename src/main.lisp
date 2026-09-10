@@ -13,7 +13,6 @@
   (state-dir))
 
 (defun start (&key (file nil) (config nil))
-  (write-manifest-best-effort)
   (format t "~&[ymacs] Initializing ymacs ~a on libyggterm...~%" *ymacs-version*)
   (setf *startup-time* (get-internal-real-time))
   (register-probe :ymacs-startup :description "Measures cold start time" :fields '(latency-ms))
@@ -222,7 +221,6 @@ row). A restored session that already holds them is left untouched."
   (format t "  --version         Show version~%"))
 
 (defun handle-cli (args)
-  (write-manifest-best-effort)
   (let ((files nil) (do-daemon nil) (do-close nil) (eval-forms nil) (config nil))
     (loop for a in args do
       (cond

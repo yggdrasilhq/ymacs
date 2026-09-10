@@ -59,5 +59,4 @@
                              (:file "keyboard")
                              (:file "info")))
                (:file "full-emacs")
-               (:file "manifest")
                (:file "main")))
