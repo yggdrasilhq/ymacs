@@ -306,11 +306,50 @@ resolve to nothing here."
         (info-select-node buf "Top")
         (message "Not in an Info view"))))
 
-(defcommand info-follow-nearest-node ()
-  "Info RET — follow the menu entry or `*note' cross reference under
-point, exactly like Info-follow-nearest-node."
+(defcommand info-next-menu-entry ()
+  "Info TAB — step the menu cursor; the echo names the entry (the
+rendered view follows it with RET, the Emacs Info TAB habit)."
   (interactive)
-  (let* ((buf *current-buffer*)
+  (let ((buf *current-buffer*))
+    (if (and buf (info-buffer-p buf))
+        (let ((idx (info-menu-cursor-move buf 1)))
+          (bump-document-version)
+          (let* ((node (info-current-node buf))
+                 (entries (and node (info-menu-entries node)))
+                 (label (and entries idx (< idx (length entries))
+                             (car (nth idx entries)))))
+            (message "Menu ~a/~a~@[ · ~a~]" (1+ idx) (length entries) label)))
+        (message "Not in an Info view"))))
+
+(defcommand info-previous-menu-entry ()
+  "Info S-TAB — step the menu cursor back, wrapping."
+  (interactive)
+  (let ((buf *current-buffer*))
+    (if (and buf (info-buffer-p buf))
+        (let ((idx (info-menu-cursor-move buf -1)))
+          (bump-document-version)
+          (let* ((node (info-current-node buf))
+                 (entries (and node (info-menu-entries node)))
+                 (label (and entries idx (< idx (length entries))
+                             (car (nth idx entries)))))
+            (message "Menu ~a/~a~@[ · ~a~]" (1+ idx) (length entries) label)))
+        (message "Not in an Info view"))))
+
+(defcommand info-follow-nearest-node ()
+  "Info RET — the rendered view follows the TAB cursor's menu entry; the
+raw view follows the menu entry or `*note' cross reference under point,
+exactly like Info-follow-nearest-node."
+  (interactive)
+  (if (and (fboundp 'rendered-mode-p) *current-buffer*
+           (rendered-mode-p *current-buffer*))
+      (let* ((buf *current-buffer*)
+             (node (info-current-node buf))
+             (entries (and node (info-menu-entries node)))
+             (idx (gethash (buffer-id buf) *info-menu-index*)))
+        (if (and entries idx (< idx (length entries)))
+            (info-select-node buf (cdr (nth idx entries)))
+            (message "No menu entry selected — TAB to one")))
+      (let* ((buf *current-buffer*)
          (content (and buf (buffer-content buf)))
          (pt (and buf (1- (buffer-point buf)))))
     (if (and buf content)
@@ -319,7 +358,7 @@ point, exactly like Info-follow-nearest-node."
           (if target
               (info-select-node buf target)
               (message "No menu item or cross reference here")))
-        (message "Not in an Info view"))))
+        (message "Not in an Info view")))))
 
 (defcommand info-history-back ()
   "Info `l' — step back through this view's node history."
@@ -435,6 +474,8 @@ as Emacs Info does when the end of the node is on screen."
   (local-set-key "info-mode" "u" 'info-up-node)
   (local-set-key "info-mode" "t" 'info-top-node)
   (local-set-key "info-mode" "RET" 'info-follow-nearest-node)
+  (local-set-key "info-mode" "TAB" 'info-next-menu-entry)
+  (local-set-key "info-mode" "S-TAB" 'info-previous-menu-entry)
   (local-set-key "info-mode" "l" 'info-history-back)
   (local-set-key "info-mode" "s" 'info-search)
   (local-set-key "info-mode" "q" 'info-exit)
@@ -442,10 +483,125 @@ as Emacs Info does when the end of the node is on screen."
   (local-set-key "info-mode" "DEL" 'info-scroll-down)
   t)
 
+;;; --- The rendered-view projection (docs/spec-rendering.md) ---------------
+
+(defvar *info-menu-index* (make-hash-table :test 'equal)
+  "Buffer id -> the 0-based menu entry under the TAB cursor (the Emacs
+Info TAB habit, rendered view).")
+
+(defun info-current-node (buf)
+  (let ((cur (info-current-node-name buf)))
+    (and cur (gethash cur (gethash (buffer-name buf) *info-by-name*)))))
+
+(defun info-md-link (label node)
+  (format nil "[~a](<info:~a>)" label node))
+
+(defun info-note-label-node (text start)
+  "The cross reference at `*note' START as (values label node end): the
+makeinfo forms are `*note Label: Node.' and `*note Node::'."
+  (let* ((limit (length text))
+         (p (loop for i from (+ start 5) below limit
+                  while (char= (char text i) #\Space)
+                  finally (return i))))
+    (labels ((terminator (from)
+               (loop for i from from below limit
+                     when (member (char text i) '(#\: #\. #\, #\; #\Newline))
+                     return i)))
+      (let ((label-end (terminator p)))
+        (when (and label-end (char= (char text label-end) #\:))
+          (let ((label (string-trim " " (subseq text p label-end))))
+            (if (and (< (1+ label-end) limit)
+                     (char= (char text (1+ label-end)) #\:))
+                (values label label (+ label-end 2))
+                (let* ((q (loop for i from (1+ label-end) below limit
+                                while (char= (char text i) #\Space)
+                                finally (return i)))
+                       (node-end (terminator q)))
+                  (when (and node-end (> node-end q))
+                    (values label
+                            (string-trim " " (subseq text q node-end))
+                            node-end))))))))))
+
+(defun info-note-to-md (text)
+  "Rewrite `*note' cross references to markdown links; an unparseable
+reference passes through verbatim."
+  (let ((parts '()) (pos 0))
+    (loop
+      (let ((at (search "*note" text :start2 pos)))
+        (unless at
+          (push (subseq text pos) parts)
+          (return))
+        (push (subseq text pos at) parts)
+        (let ((ok (and (> (length text) (+ at 5))
+                       (member (char text (+ at 5)) '(#\Space #\Newline)))))
+          (multiple-value-bind (label node end)
+              (when ok (ignore-errors (info-note-label-node text at)))
+            (if (and label node (plusp (length node)))
+                (progn (push (info-md-link label node) parts)
+                       (setf pos end))
+                (progn (push "*note" parts)
+                       (setf pos (+ at 5))))))))
+    (apply #'concatenate 'string (nreverse parts))))
+
+(defun info-menu-cursor-move (buf delta)
+  "Step the TAB cursor over the current node's menu, wrapping. Returns
+the new index, or NIL when this node has no menu."
+  (let* ((node (info-current-node buf))
+         (n (if node (length (info-menu-entries node)) 0)))
+    (when (plusp n)
+      (let ((idx (mod (+ (or (gethash (buffer-id buf) *info-menu-index*) 0) delta) n)))
+        (setf (gethash (buffer-id buf) *info-menu-index*) idx)
+        (when (fboundp 'rendering-bump-epoch) (rendering-bump-epoch buf))
+        idx))))
+
+(defun info-buffer-markdown (buf)
+  "The rendered-view projection of the current Info node (the rendering
+law): heading, header spine as links, body with `*note' rewrites, menu
+entries as links. The buffer text itself is NEVER touched."
+  (let ((node (info-current-node buf)))
+    (when node
+      (let* ((entries (info-menu-entries node))
+             (cursor (gethash (buffer-id buf) *info-menu-index*))
+             (text (info-node-text node))
+             (menu-at (search "* Menu:" text))
+             (body (if menu-at (subseq text 0 menu-at) text))
+             (out (list)))
+        (flet ((spine-link (label accessor)
+                 (let ((target (funcall accessor node)))
+                   (when (and target (not (string= target "(dir)")))
+                     (info-md-link label target)))))
+          (let ((links (remove nil (list (spine-link "Next" #'info-node-next)
+                                         (spine-link "Prev" #'info-node-prev)
+                                         (spine-link "Up" #'info-node-up)))))
+            (when links
+              (push (concatenate 'string
+                                 (format nil "~{~a~^ · ~}" links)
+                                 (string #\Newline) (string #\Newline)) out)))
+          (push (concatenate 'string "# " (info-node-name node)
+                             (string #\Newline) (string #\Newline)) out)
+          (push (info-note-to-md body) out)
+          (when entries
+            (push (concatenate 'string (string #\Newline) "**Menu**"
+                               (string #\Newline) (string #\Newline)) out)
+            (let ((i 0))
+              (dolist (e entries)
+                (let ((link (info-md-link (car e) (cdr e))))
+                  (push (concatenate 'string
+                                     "- "
+                                     (if (and cursor (= i cursor)) "**" "")
+                                     link
+                                     (if (and cursor (= i cursor)) "**" "")
+                                     (string #\Newline))
+                        out))
+                (incf i))))
+          (apply #'concatenate 'string (nreverse out)))))))
+
 (define-major-mode "info-mode"
+  :rich-parser #'info-buffer-markdown
   :doc "Info mode — read the manual: n/p/u move the spine, t goes to
-Top, RET follows the nearest menu entry or cross reference, l steps
-back, s searches the manual, SPC/DEL scroll, q quits."
+Top, TAB walks the menu, RET follows the nearest menu entry or cross
+reference, l steps back, s searches the manual, SPC/DEL scroll, q
+quits."
   :hook (lambda (buf)
           (declare (ignore buf))
           (info-set-keybindings)))

@@ -85,7 +85,14 @@
             (info-up-node)
             (info-assert-equal "Top" (info-current-node-name buf))))
         (info-test "RET follows the menu entry under point"
-          (let ((buf (info-open)))
+          ;; The RAW view law: rendered-mode off here so the point-based
+          ;; RET path is exercised (the rendered path lives in
+          ;; rendering-tests — docs/spec-rendering.md).
+          (let* ((*global-rendered-mode* nil)
+                 (buf (info-open)))
+            ;; A previous test's view may have left this buffer rendered;
+            ;; this test IS the raw path (rendered lives in rendering-tests).
+            (rendered-mode-off buf)
             (let* ((content (buffer-content buf))
                    (menu-line (search "* Durable Buffers::" content)))
               (info-assert-equal t (and menu-line t))
