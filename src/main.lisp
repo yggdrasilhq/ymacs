@@ -117,7 +117,13 @@ SBCL, so the lookup is unconditional."
   ;; whole spawn silently, every boot, forever.
   (let* ((exe (or (sb-ext:posix-getenv "YMACS_BIN") (first sb-ext:*posix-argv*)))
          (home (ymacs-home)))
-    (ensure-directories-exist (merge-pathnames ".yggterm/ymacs/" home))
+    ;; ⛔ merge-pathnames of a RELATIVE dir into "/home/pi" (no slash)
+    ;; yields /home/.yggterm/ymacs/pi — SBCL parses the home as NAME PI.
+    ;; state-dir already appends the slash; funnel through it.
+    (ensure-directories-exist (if (fboundp (quote state-dir))
+                                  (state-dir)
+                                  (merge-pathnames ".yggterm/ymacs/"
+                                                   (pathname (concatenate (quote string) home "/")))))
     (sb-ext:run-program "/bin/sh" (list "-c" (format nil "nohup ~a --daemon >~a/.yggterm/ymacs/daemon.log 2>&1 &" exe home))
                         :wait t :search t))
   ;; Wait up to 15s for daemon to write and answer — the 39MB core
