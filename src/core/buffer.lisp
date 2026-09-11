@@ -41,8 +41,13 @@
   new-val)
 
 (defun state-dir ()
-  (let ((home (or (sb-ext:posix-getenv "HOME")
-                  (namestring (user-homedir-pathname)))))
+  ;; Funnel through ymacs-home (the row-shell HOME law): the daemon and
+  ;; the client must agree on ONE home even when sshd hands over a
+  ;; broken env. fboundp-guarded: core loads before main.
+  (let ((home (if (fboundp 'ymacs-home)
+                  (ymacs-home)
+                  (or (sb-ext:posix-getenv "HOME")
+                      (namestring (user-homedir-pathname))))))
     (merge-pathnames ".yggterm/ymacs/" (parse-namestring (concatenate 'string home "/")))))
 
 (defun ensure-state-dir ()

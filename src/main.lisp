@@ -7,7 +7,20 @@
 (defvar *startup-time* nil)
 
 (defun ymacs-home ()
-  (or (sb-ext:posix-getenv "HOME") "/home/user"))
+  "The user's REAL home directory. The env HOME wins only when it
+agrees with the password database: fleet row shells have been measured
+carrying HOME=/home or no HOME at all (dev, 2026-09-11 — the client
+then died booting on /home/.yggterm, unhandled, every time). The passwd
+database is the truth sshd refused to hand over; sb-posix ships with
+SBCL, so the lookup is unconditional."
+  (let* ((env (sb-ext:posix-getenv "HOME"))
+         (passwd (ignore-errors
+                   (sb-posix:passwd-dir (sb-posix:getpwuid (sb-posix:getuid))))))
+    (cond
+      ((and passwd env (string= env passwd)) env)
+      (passwd passwd)
+      ((and env (plusp (length env))) env)
+      (t "/home/user"))))
 
 (defun ymacs-state-dir ()
   (state-dir))
