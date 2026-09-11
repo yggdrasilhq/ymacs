@@ -549,7 +549,9 @@ the new index, or NIL when this node has no menu."
   (let* ((node (info-current-node buf))
          (n (if node (length (info-menu-entries node)) 0)))
     (when (plusp n)
-      (let ((idx (mod (+ (or (gethash (buffer-id buf) *info-menu-index*) 0) delta) n)))
+      ;; A nil cursor means "none yet": the first TAB lands on the FIRST
+      ;; entry (Emacs Info habit), stepping back from it wraps to the last.
+      (let ((idx (mod (+ (or (gethash (buffer-id buf) *info-menu-index*) -1) delta) n)))
         (setf (gethash (buffer-id buf) *info-menu-index*) idx)
         (when (fboundp 'rendering-bump-epoch) (rendering-bump-epoch buf))
         idx))))
