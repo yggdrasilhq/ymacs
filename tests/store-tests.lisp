@@ -150,6 +150,16 @@
         (store-close))
       (ignore-errors (delete-file manual))))
 
+  ;; 7. the row-shell HOME law: a broken HOME never sends the state dir
+  ;; to /home (measured on dev rows 2026-09-11 — the client died on
+  ;; /home/.yggterm every boot); the passwd database is the truth.
+  (stest "ymacs-home refuses a wrong HOME: the passwd database wins"
+    (let ((real (sb-posix:passwd-dir (sb-posix:getpwuid (sb-posix:getuid)))))
+      (sb-posix:setenv "HOME" "/home" 1)
+      (assert-eq* real (ymacs-home))
+      (sb-posix:setenv "HOME" real 1)
+      (assert-eq* real (ymacs-home))))
+
   ;; 6. M-x surface of the law.
   (stest "save-buffers-kill-ymacs is registered for M-x"
     (assert-eq* t (not (null (member "save-buffers-kill-ymacs"
