@@ -498,7 +498,12 @@ a PINNED tab strip plus a FLOATING command panel (docs/spec-ribbon.md)."
   `(("kind" . "ribbon-bar") ("id" . "ribbon")
     ("action" . "ribbon-tab") ("active" . ,*tab-bar-active*)
     ("tabs" . ,(tab-bar-schema-tabs))
-    ("groups" . ,(tab-bar-schema-groups buf))))
+    ("groups" . ,(let ((groups (coerce (tab-bar-schema-groups buf) 'list))
+                       (extra (and (fboundp 'rendering-ribbon-group)
+                                   (rendering-ribbon-group buf))))
+                   (if extra
+                       (apply #'vector (append groups (list extra)))
+                       (coerce groups 'vector))))))
 
 (defun document-ribbon (buf label-text)
   "The ribbon region for the document schema: the ribbon-bar (tabs over
@@ -532,15 +537,25 @@ signal."
                 ;; 2026-09-04 — the strip stayed mounted for 12s+).
                 ("ribbon" . ,(or (document-ribbon
                                    buf
-                                   (format nil "~a~a  •  ~a lines~@[  [~a]~]" name mod (count-lines content) (and (plusp (length pending)) pending)))
+                                   (format nil "~a~a~a  •  ~a lines~@[  [~a]~]"
+                                           name mod
+                                           (if (fboundp 'rendering-mode-tag) (rendering-mode-tag buf) "")
+                                           (count-lines content) (and (plusp (length pending)) pending)))
                                  (vector)))
                 ("widgets" . ,(document-schema-widgets
                                (vector
-                                `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
+                                (if (and (fboundp 'rendered-mode-p) (fboundp 'rendering-prose-for)
+                                         (rendered-mode-p buf)
+                                         (rendering-prose-for buf))
+                                    `(("kind" . "markdown") ("id" . "rendered-view")
+                                      ("source" . ,(rendering-prose-for buf))
+                                      ("read_only" . t)
+                                      ("links_action" . "follow-link"))
+                                    `(("kind" . "text-input") ("id" . "editor") ("multiline" . t)
                                   ("line_numbers" . ,(settings-get-bool "editor.line-numbers" t))
                                   ("word_wrap" . ,(settings-get-bool "editor.word-wrap" t))
                                   ("value" . ,content) ("value_key" . ,id)
-                                  ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers")))))))
+                                  ("placeholder" . ";; ymacs — type here, C-x C-s to save, C-c s for Buffers"))))))))
             `(("title" . "ymacs")
               ("key_capture" . t)
               ("ribbon" . ,(or (document-ribbon nil "ymacs — GNU Emacs on libyggterm")
@@ -710,6 +725,16 @@ host rejects nulls: the 2026-09-04 ribbon lesson)."
       ((and action (string= action "which-key"))
        (spawn-sidebar "which-key")
        `(("ok" . t) ("document_version" . ,(sidebar-document-version))))
+      ((and action (string= action "follow-link"))
+       ;; The rendered view's links (docs/spec-rendering.md): the shell
+       ;; POSTs the widget's links_action with the href as values.value.
+       (let ((href (cdr (assoc "value" values-alist :test #'string=))))
+         `(("ok" . ,(and href (fboundp 'rendering-follow-link)
+                         (rendering-follow-link href) t))
+           ("document_version" . ,(document-version)))))
+      ((and action (string= action "toggle-rendered"))
+       (when (fboundp 'rendered-mode) (rendered-mode))
+       `(("ok" . t) ("document_version" . ,(document-version))))
       ((and action (string= action "key"))
        ;; The key plane (docs/spec-key-plane.md): one chord per POST,
        ;; dispatched through the command layer, fresh schema in the reply.

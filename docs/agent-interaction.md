@@ -23,3 +23,10 @@ ymacs buffer-replace --buffer "init.org" --target "* Old Heading" --replacement 
 ## 2. Draft Stability and Buffer Identity
 
 Following the `libyggterm` contract, all buffer fields carry explicit `value_key` identifiers. Concurrent edits by human users and AI agents are resolved with deterministic revision checks to prevent focus loss and cursor jumping.
+
+## 3. The agent filesystem (PROPOSED)
+
+The full acme-shaped filesystem design — buffers/windows tree, path-encoded
+revisions, events, plumb, transport layering — is specified in
+[spec-agent-fs.md](spec-agent-fs.md). The verbs above predate it and remain
+the day-one surface until that spec lands.

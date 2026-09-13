@@ -6,7 +6,7 @@
   :license "GPL-3.0-or-later"
   :version "0.1.3"
   :serial t
-  :depends-on (:sb-bsd-sockets :cffi :sqlite)
+  :depends-on (:sb-bsd-sockets :cffi :sqlite :sb-posix)
   :components ((:file "package")
                (:module "core"
                 :components ((:file "rope")
@@ -57,6 +57,8 @@
                              (:file "minibuffer")
                              (:file "modeline")
                              (:file "keyboard")
-                             (:file "info")))
+                             (:file "info")
+                             (:file "startup")
+                             (:file "rendered")))
                (:file "full-emacs")
                (:file "main")))

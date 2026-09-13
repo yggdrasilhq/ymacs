@@ -12,12 +12,16 @@
   keymap
   syntax-table
   hook
-  parent)
+  parent
+  ;; Rendering law: (lambda (buffer) -> CommonMark string), the
+  ;; buffer's rich-view producer. NIL = the mode has no rendered view.
+  rich-parser)
 
-(defun define-major-mode (name &key doc keymap syntax-table hook parent)
+(defun define-major-mode (name &key doc keymap syntax-table hook parent rich-parser)
   (setf (gethash (string-downcase name) *major-modes*)
         (make-major-mode :name name :doc doc :keymap (or keymap (elisp/make-keymap))
-                         :syntax-table syntax-table :hook hook :parent parent))
+                         :syntax-table syntax-table :hook hook :parent parent
+                         :rich-parser rich-parser))
   name)
 
 (defun buffer-major-mode (buf)
@@ -27,6 +31,11 @@
   (setf (gethash (buffer-id buf) *buffer-major-mode*) (string-downcase mode))
   (let ((mode-def (gethash (string-downcase mode) *major-modes*)))
     (when mode-def
+      ;; Rendering law: the mode's rich parser arms the projection and
+      ;; the global wrapper arms the buffer-local minor mode.
+      (setf (buffer-prose-producer buf) (major-mode-rich-parser mode-def))
+      (when (fboundp 'maybe-enable-rendered-mode)
+        (maybe-enable-rendered-mode buf))
       (when (major-mode-hook mode-def)
         (ignore-errors (funcall (major-mode-hook mode-def) buf)))
       (elisp/run-hooks (format nil "~a-hook" (string-downcase mode)))))

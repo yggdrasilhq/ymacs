@@ -216,15 +216,27 @@ chords never self-insert)."
   "Insert the typed character COUNT times at point."
   (interactive "p
 c")
-  (when (and *current-buffer* ch)
-    ;; WITH undo — pixel-verification caught plain insert here: typing was
-    ;; not undoable (C-/ on a fresh keystroke answered "no further undo").
-    (buffer-insert-with-undo *current-buffer*
+  (cond
+    ;; The startup screen is a read-only view (GNU's splash never takes
+    ;; typing either) — refuse with a message, never insert.
+    ((and *current-buffer* (fboundp 'splash-buffer-p)
+          (splash-buffer-p *current-buffer*))
+     (message "The startup screen is read-only"))
+    ((and *current-buffer* ch)
+     ;; Typing into a rendered view drops to the raw text editor first
+     ;; (docs/spec-rendering.md §1: reading rich, editing raw), then the
+     ;; keystroke inserts — the VSCode muscle memory with no new knob.
+     (when (and (fboundp 'rendered-mode-p) (rendered-mode-p *current-buffer*))
+       (rendered-mode-off *current-buffer*)
+       (message "Rendered view off — editing raw text"))
+     ;; WITH undo — pixel-verification caught plain insert here: typing was
+     ;; not undoable (C-/ on a fresh keystroke answered "no further undo").
+     (buffer-insert-with-undo *current-buffer*
                    (buffer-point *current-buffer*)
                    (make-string count :initial-element ch))
-    (setf (buffer-point *current-buffer*)
-          (keyboard-clamp-point (+ (buffer-point *current-buffer*) count)))
-    t))
+     (setf (buffer-point *current-buffer*)
+           (keyboard-clamp-point (+ (buffer-point *current-buffer*) count)))
+     t)))
 
 (defcommand universal-argument (&optional (count 4))
   "C-u: begin a numeric prefix argument; consecutive C-u's multiply.

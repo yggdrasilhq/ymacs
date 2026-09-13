@@ -488,7 +488,61 @@ TITLE indents by outline level and carries the workflow keyword."
 
 ;;; --- Mode definition and keybindings ----------------------------------------
 
+(defun org-line-links-to-markdown (line)
+  "Org links to markdown on one line: [[url][text]] -> [text](<url>),
+[[url]] -> [url](<url>). Unparseable prefixes pass through."
+  (let ((parts '()) (pos 0))
+    (loop
+      (let ((at (search "[[" line :start2 pos)))
+        (unless at
+          (push (subseq line pos) parts)
+          (return))
+        (push (subseq line pos at) parts)
+        (let ((close (and (> (length line) (+ at 2)) (search "]]" line :start2 (+ at 2)))))
+          (if close
+              (let* ((inner (subseq line (+ at 2) close))
+                     (sep (search "][" inner)))
+                (if sep
+                    (push (format nil "[~a](<~a>)" (subseq inner (+ sep 2)) (subseq inner 0 sep)) parts)
+                    (push (format nil "[~a](<~a>)" inner inner) parts))
+                (setf pos (+ close 2)))
+              (progn (push "[[" parts) (setf pos (+ at 2)))))))
+    (apply #'concatenate 'string (nreverse parts))))
+
+(defun org-buffer-markdown (buf)
+  "The rendered-view projection of an org buffer, v0: headings, links
+and BEGIN_SRC/EXAMPLE blocks map to markdown; everything else passes
+through line-for-line. Step-6 typed nodes deepen this later."
+  (with-output-to-string (out)
+    (let ((in-block nil))
+      (dolist (line (split-lines (buffer-content buf)))
+        (let ((trimmed (string-left-trim " " line)))
+          (cond
+            ((and (plusp (length trimmed)) (char= (char trimmed 0) #\*))
+             (let ((level 0))
+               (loop while (and (< level (length trimmed))
+                                (char= (char trimmed level) #\*))
+                     do (incf level))
+               (format out "~a ~a~%"
+                       (make-string level :initial-element #\#)
+                       (string-trim " " (subseq trimmed level)))))
+            ((and (> (length trimmed) 11) (string-equal "#+BEGIN_SRC" trimmed :end1 11))
+             (setf in-block t)
+             (write-line "```" out))
+            ((and (> (length trimmed) 15) (string-equal "#+BEGIN_EXAMPLE" trimmed :end1 15))
+             (setf in-block t)
+             (write-line "```" out))
+            ((and (> (length trimmed) 9) (string-equal "#+END_SRC" trimmed :end1 9))
+             (setf in-block nil)
+             (write-line "```" out))
+            ((and (> (length trimmed) 13) (string-equal "#+END_EXAMPLE" trimmed :end1 13))
+             (setf in-block nil)
+             (write-line "```" out))
+            (in-block (write-line line out))
+            (t (write-line (org-line-links-to-markdown line) out))))))))
+
 (define-major-mode "org-mode"
+  :rich-parser #'org-buffer-markdown
   :doc "Org mode — typed org nodes: TODO cycle, checkbox toggle, headline nav."
   :hook (lambda (buf)
           (declare (ignore buf))
