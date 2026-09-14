@@ -101,10 +101,16 @@ opened' over a declare nothing could parse."
 ;; sidebars wearing a trenchcoat — the one-sidebar law means one icon
 ;; (Xi, the Emacs E) whose content ymacs changes as it sees fit.
 (defun emit-declare (session control document-version)
+  ;; The declare carries the control token (control_token, the ONE
+  ;; secret a declare may hold): the PTY stream is the channel a page
+  ;; cannot read, and the shell presents the token as X-Ychrome-Control
+  ;; on every control request (spec-agent-fs phase 0 — the daemon's
+  ;; routes fail closed without it).
   (let* ((title (if *current-buffer* (buffer-name *current-buffer*) "ymacs"))
-         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"ymacs\",\"icon\":\"Ξ\",\"title\":\"Ymacs\",\"placement\":\"rail\"}]}"
+         (payload (format nil "{\"session\":\"~a\",\"control\":\"~a\",\"control_token\":\"~a\",\"app_name\":\"ymacs\",\"document_version\":\"~a\",\"panes\":[{\"id\":\"doc\",\"icon\":\"📝\",\"title\":\"ymacs — ~a\",\"placement\":\"viewport\"},{\"id\":\"ymacs\",\"icon\":\"Ξ\",\"title\":\"Ymacs\",\"placement\":\"rail\"}]}"
                           (json-escape-string session)
                           (json-escape-string control)
+                          (json-escape-string (ensure-control-token))
                           (json-escape-string document-version)
                           (json-escape-string title))))
     (emit-osc-7717 "sidebar" "declare" payload)))

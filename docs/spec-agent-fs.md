@@ -183,6 +183,32 @@ worth landing regardless of the fs decision.
   disk must not diverge silently.
 - No daemon-side command execution surface is added by this spec (no `|cmd`).
 
+**P0 LANDED (2026-09-14, lane/ymacs/p0-token-auth)** — measured refinements
+of the bullets above, discovered against the shell's existing contract:
+
+- The daemon mints `control.token` (256-bit hex, 0600 enforced via chmod —
+  a permissive umask must not widen it); an existing file always wins, so
+  restarts and thin clients see the same secret. The client-side read is
+  read-only (a client that mints would disagree with its daemon).
+- The token reaches the shell through the **declare** (`control_token` in
+  the OSC 7717 sidebar payload — the PTY stream is the one channel a page
+  cannot read), and the shell presents it as `X-Ychrome-Control`. The
+  server accepts BOTH spellings: that header or `Authorization: Bearer`.
+- **`GET /ping` stays open — deliberate divergence from "every request".**
+  The shell's declare-time liveness probe fires before any token exists
+  (`/ping`'s stamps are open is a documented shell-side law), and `/ping`
+  answers only name+version stamps to a fire-and-forget read: no state,
+  no eval, no text. Every other route fails closed (401).
+- Socket timeouts ride SBCL's `sb-sys:with-deadline` (the runtime
+  interrupts blocking reads): a client gets `*control-request-read-deadline*`
+  (10s) to deliver its complete request, after which the socket closes —
+  route handling (eval!) is never deadline-bounded. Concurrent handler
+  threads are capped (`*control-max-connections*`, 503 above the cap) and
+  `Content-Length` is capped (16MB, refused without allocating).
+- `X-Ymacs-Agent` on mutations lands in the probe/ytrace log now (eval
+  gets an audit line with the form, truncated); the event-stream `origin`
+  joins at P2 when the stream exists.
+
 ## 5. Worked examples (the acceptance bar)
 
 ```bash
@@ -210,7 +236,8 @@ ymacs patch b3 --rev 89 --addr '/defun foo/,/^}/' < fix.diff || ymacs patch b3 -
 ## 6. Phase order (when GO)
 
 - **P0 — token auth retrofit** on the existing control server (live defect,
-  independent of everything else).
+  independent of everything else). **DONE 2026-09-14** (see §4) — landed
+  before the GO; it was always a defect fix, not a phase that waits.
 - **P1 — core tree over HTTP:** index (TSV), buffers (body, body@rev,
   revision, props, ctl), addressed reads/writes with OCC, `ymacs`
   cat/rev/write/patch/pipe subcommands. This alone delivers the bash

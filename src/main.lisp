@@ -85,8 +85,11 @@ SBCL, so the lookup is unconditional."
           (let ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t :element-type 'character :external-format :utf-8)))
             ;; Byte length: --eval forms with non-ASCII (emoji strings,
             ;; unicode paths) are more bytes than characters on the wire.
-            (format stream "POST ~a HTTP/1.1~C~CHost: ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
-                    path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (utf8-byte-length body-json) #\Return #\Newline #\Return #\Newline #\Return #\Newline body-json)
+            ;; The control routes demand the daemon's token (spec-agent-fs
+            ;; phase 0): the client reads the minted file, never mints.
+            (let ((token (read-token-file (control-token-file))))
+              (format stream "POST ~a HTTP/1.1~C~CHost: ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~@[Authorization: Bearer ~a~C~C~]~C~C~a"
+                      path #\Return #\Newline host #\Return #\Newline #\Return #\Newline (utf8-byte-length body-json) #\Return #\Newline #\Return #\Newline token #\Return #\Newline #\Return #\Newline body-json))
             (force-output stream)
             (let* ((raw (with-output-to-string (out) (loop for ch = (read-char stream nil nil) while ch do (write-char ch out))))
                    (body (second (split-once raw (format nil "~C~C~C~C" #\Return #\Newline #\Return #\Newline)))))

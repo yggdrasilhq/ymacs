@@ -9,10 +9,124 @@
 (defun control-url-file ()
   (merge-pathnames "control-url" (state-dir)))
 
+;;; ---- Phase-0 auth gate (docs/spec-agent-fs.md) --------------------------
+;;; The control server was an unauthenticated loopback RCE: POST /action
+;;; eval executed arbitrary Lisp for any local process or any browser tab
+;;; via DNS rebinding. Every route except /ping now demands the token; the
+;;; shell presents it from the declare (X-Ychrome-Control contract), thin
+;;; clients read the same file (Authorization: Bearer spelling).
+
+(defvar *control-token* nil
+  "The secret every authenticated control request must present. NIL
+until minted; a pre-bound value (tests) is honored and never rewritten.")
+
+(defvar *control-request-read-deadline* 10
+  "Seconds a client has to deliver its complete request (line, headers,
+body). The read phase runs under this deadline — a silent socket must
+not hold a handler thread forever. Route handling (eval!) is NOT
+deadline-bounded: headless --eval work may legitimately run long.")
+
+(defvar *control-max-request-bytes* (* 16 1024 1024)
+  "Content-Length above this is refused 413 without allocating.")
+
+(defvar *control-max-connections* 64
+  "Live handler-thread cap. Over the cap the acceptor answers 503 and
+closes: thread-per-connection plus long polls is thread exhaustion by
+construction (spec-agent-fs phase 0). The cap is a counting semaphore —
+trywait at accept, post when the handler finishes — because it must be
+atomic without any atomic-incf place grammar.")
+
+(defvar *control-conn-sem* nil
+  "The live connection budget, (re)made at server start.")
+
+(defvar *control-active-token* nil
+  "The token this listener enforces, captured by the STARTING thread at
+server start. Handler threads must read THIS, never ensure-control-token:
+SBCL threads do not inherit the starter's dynamic bindings, and a thread
+that finds NIL would mint a second secret mid-flight.")
+
+(defun control-token-file ()
+  (merge-pathnames "control.token" (state-dir)))
+
+(defun read-token-file (path)
+  "The token file's trimmed contents, or NIL. Read-only: clients use
+this and must never mint (a minted client token would disagree with the
+daemon's)."
+  (when (probe-file path)
+    (ignore-errors
+      (with-open-file (s path :if-does-not-exist nil)
+        (string-trim '(#\Space #\Tab #\Return #\Newline #\Null)
+                     (with-output-to-string (out)
+                       (loop for ch = (read-char s nil nil)
+                             while ch do (write-char ch out))))))))
+
+(defun mint-control-token (path)
+  "Generate a fresh 256-bit hex token and store it at PATH with 0600 —
+the token IS the auth boundary, a default umask must not widen it.
+Returns the token."
+  (let ((octets (make-array 32 :element-type '(unsigned-byte 8)))
+        (got 0))
+    (ignore-errors
+      (with-open-file (f "/dev/urandom" :element-type '(unsigned-byte 8))
+        (setf got (read-sequence octets f))))
+    (loop for i from got below 32
+          do (setf (aref octets i) (random 256)))
+    (let ((token (format nil "~(~{~2,'0x~}~)" (coerce octets 'list))))
+      (with-open-file (s path :direction :output
+                         :if-exists :supersede :if-does-not-exist :create)
+        (write-string token s))
+      (require :sb-posix)
+      (multiple-value-bind (ok err)
+          (ignore-errors (sb-posix:chmod (namestring path) #o600))
+        (unless ok
+          (format *error-output*
+                  "~&[ymacs] control.token chmod failed: ~a — token file may be group-readable~%" err)))
+      token)))
+
+(defun ensure-control-token ()
+  "The control token, minting and persisting it (0600) on first use in
+the daemon. An existing file wins — restarts and thin clients must see
+the same secret. A pre-bound *control-token* (tests) is honored as-is
+and never written out."
+  (unless *control-token*
+    (let ((existing (read-token-file (control-token-file))))
+      (setf *control-token*
+            (if (and existing (plusp (length existing)))
+                existing
+                (mint-control-token
+                 (merge-pathnames "control.token" (ensure-state-dir)))))))
+  *control-token*)
+
+(defun token-equal-p (a b)
+  "Equal in length-independent time: always walks the longer string, so
+response timing reveals nothing about the stored token."
+  (let* ((sa (or a "")) (sb* (or b ""))
+         (la (length sa)) (lb (length sb*))
+         (acc (logxor la lb)))
+    (loop for i below (max la lb)
+          for ca = (if (< i la) (char-code (char sa i)) 0)
+          for cb = (if (< i lb) (char-code (char sb* i)) 0)
+          do (setf acc (logior acc (logxor ca cb))))
+    (zerop acc)))
+
+(defun presented-token (headers)
+  "The request's token from either wire spelling: the shell's declare
+contract sends X-Ychrome-Control; the spec/CLI spelling is Authorization:
+Bearer. First present wins."
+  (or (cdr (assoc "x-ychrome-control" headers :test #'string-equal))
+      (let ((auth (cdr (assoc "authorization" headers :test #'string-equal))))
+        (when (and auth (>= (length auth) 7)
+                   (string-equal "bearer " auth :end1 7 :end2 7))
+          (string-trim '(#\Space #\Tab) (subseq auth 7))))))
+
 (defun start-control-server (&key (port 0))
   (when *control-listener*
     (return-from start-control-server *control-url*))
   (require :sb-bsd-sockets)
+  ;; The token exists before the listener does: the first declare that
+  ;; names this URL must already be able to carry the secret. Captured
+  ;; into *control-active-token* for the handler threads (see above).
+  (setf *control-active-token* (ensure-control-token))
   (let* ((sock (make-instance 'sb-bsd-sockets:inet-socket :type :stream :protocol :tcp))
          (addr (sb-bsd-sockets:make-inet-address "127.0.0.1")))
     (sb-bsd-sockets:socket-bind sock addr (or port 0))
@@ -22,7 +136,8 @@
       (setf *control-listener* sock
             *control-url* url
             *control-port* bound-port
-            *control-server-running* t)
+            *control-server-running* t
+            *control-conn-sem* (sb-thread:make-semaphore :count *control-max-connections*))
       (ensure-state-dir)
       (with-open-file (s (control-url-file) :direction :output :if-exists :supersede :external-format :utf-8)
         (write-string url s))
@@ -31,13 +146,26 @@
          (loop while *control-server-running* do
            (handler-case
                (let ((client (sb-bsd-sockets:socket-accept sock)))
-                 (sb-thread:make-thread
-                  (lambda ()
-                    (handler-case (handle-client client)
-                      (error (e) (ignore-errors (sb-bsd-sockets:socket-close client)))))))
+                 (if (sb-thread:try-semaphore *control-conn-sem*)
+                     (sb-thread:make-thread
+                      (lambda ()
+                        (unwind-protect
+                             (handler-case (handle-client client)
+                               (error () nil))
+                          (ignore-errors (sb-bsd-sockets:socket-close client))
+                          (sb-thread:signal-semaphore *control-conn-sem*))))
+                     (progn
+                  ;; Cap reached: refuse without spawning. Best-effort
+                  ;; 503 — a wedged peer just gets the close.
+                       (ignore-errors
+                         (let ((s (sb-bsd-sockets:socket-make-stream client :output t
+                                                                     :element-type '(unsigned-byte 8)
+                                                                     :buffering :none)))
+                           (write-response s 503 "{\"ok\":false,\"error\":\"busy\"}" "Service Unavailable")))
+                       (ignore-errors (sb-bsd-sockets:socket-close client)))))
              (error () (sleep 0.1)))))
        :name "ymacs-control-acceptor")
-      (format t "~&[ymacs] Control server at ~a~%" url)
+      (format t "~&[ymacs] Control server at ~a (token-gated)~%" url)
       url)))
 
 (defun stop-control-server ()
@@ -248,65 +376,113 @@ on EOF before any byte."
                   stream)
   (force-output stream))
 
+(defun read-request (stream)
+  "Read and parse one HTTP request under the read deadline. Returns a
+plist (:method :path :query :headers :body :body-json), NIL when the
+client stalled past the deadline or sent garbage (the socket then just
+closes), or (:oversized t) when Content-Length exceeds the cap — no
+allocation for a claimed gigabyte."
+  (handler-case
+      (sb-sys:with-deadline (:seconds *control-request-read-deadline*)
+        (let* ((request-line (read-byte-line stream))
+               (parts (when (plusp (length request-line)) (split-whitespace request-line)))
+               (method (first parts))
+               (target (second parts))
+               (path (when target (first (split-once target "?"))))
+               (query (when target (second (split-once target "?"))))
+               (headers (read-byte-headers stream))
+               (content-length (parse-integer (or (cdr (assoc "content-length" headers :test #'string-equal)) "0") :junk-allowed t)))
+          (if (and content-length (> content-length *control-max-request-bytes*))
+              (list :oversized t :headers headers)
+              (let* ((body (when (and content-length (> content-length 0))
+                             (read-byte-body stream content-length)))
+                     (body-json (when (and body (plusp (length body)))
+                                  (handler-case (json-parse body)
+                                    (json-parse-error (e)
+                                      (list (cons "__parse_error" (princ-to-string e))))))))
+                (list :method method :path path :query query
+                      :headers headers :body body :body-json body-json)))))
+    (sb-sys:deadline-timeout () nil)
+    (error () nil)))
+
+(defvar *control-request-agent* nil
+  "The X-Ymacs-Agent header of the request being handled — the
+provenance logged with every mutation (spec-agent-fs phase 0). NIL for
+human/GUI-originated requests.")
+
 (defun handle-client (sock)
   ;; Binary stream throughout: Content-Length counts BYTES, and a
   ;; character stream would block asking for N *characters* when a
   ;; non-ASCII body holds fewer (the old read hung every emoji draft).
-  (let* ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t
+  (let ((stream (sb-bsd-sockets:socket-make-stream sock :input t :output t
                                                     :element-type '(unsigned-byte 8)
                                                     :buffering :none))
-         (start (get-internal-real-time)))
+        (start (get-internal-real-time)))
     (unwind-protect
-         (let* ((request-line (read-byte-line stream))
-                (parts (when (plusp (length request-line)) (split-whitespace request-line)))
-                (method (first parts))
-                (target (second parts))
-                (path (when target (first (split-once target "?"))))
-                (query (when target (second (split-once target "?"))))
-                (headers (read-byte-headers stream))
-                (content-length (parse-integer (or (cdr (assoc "content-length" headers :test #'string-equal)) "0") :junk-allowed t))
-                (body (when (and content-length (> content-length 0))
-                        (read-byte-body stream content-length)))
-                (body-json (when (and body (plusp (length body)))
-                             (handler-case (json-parse body)
-                               (json-parse-error (e)
-                                 (list (cons "__parse_error" (princ-to-string e))))))))
-           (let ((response
-                   (handler-case
-                       (cond
-                          ((cdr (assoc "__parse_error" body-json :test #'string=))
-                           (json-encode-response `(("ok" . nil) ("error" . "bad request json"))))
-                          ((and (string= method "GET") (string= path "/ping"))
-                           (json-encode-response `(("ok" . t) ("app_name" . "ymacs") ("document_version" . ,(document-version)))))
-                          ((and (string= method "GET") (string= path "/pane/doc"))
-                           (json-encode-response (document-schema)))
-                          ((and (string= method "GET") (string= path "/pane/ymacs"))
-                            ;; The ONE rail pane: views multiplex here.
-                            ;; The per-view routes below stay as debuggable
-                            ;; sub-views of it, never as declared panes.
-                            (json-encode-response (sidebar-pane-schema)))
-                           ((and (string= method "GET") (string= path "/pane/buffers"))
-                           (json-encode-response (buffers-schema)))
-                          ((and (string= method "GET") (or (string= path "/pane/which-key") (string= path "/pane/whichkey")))
-                           (json-encode-response (which-key-schema query)))
-                          ((and (string= method "GET") (string= path "/pane/outline"))
-                           (json-encode-response (outline-schema)))
-                          ((and (string= method "GET") (string= path "/pane/settings"))
-                           (json-encode-response (settings-pane-schema)))
-                          ((and (string= method "POST") (string= path "/open"))
-                           (let* ((raw (cdr (assoc "path" body-json :test #'string=)))
-                                  (result (when raw (ignore-errors (open-file-buffer (pathname raw))))))
-                             (if result
-                                 (json-encode-response `(("ok" . t) ("id" . ,(buffer-id result)) ("document_version" . ,(document-version))))
-                                 (json-encode-response `(("ok" . nil) ("error" . "open failed"))))))
-                          ((and (string= method "POST") (string= path "/action"))
-                           (let ((reply (handle-action body-json)))
-                             (json-encode-response reply)))
-                          (t (json-encode-response `(("ok" . nil) ("error" . "not found")))))
-                     (error (e) (json-encode-response `(("ok" . nil) ("error" . ,(princ-to-string e))))))))
-             (fire-probe :ymacs-control-request :method method :path path
-                         :latency-us (round (* 1000000 (/ (- (get-internal-real-time) start) internal-time-units-per-second))))
-             (write-response stream 200 response)))
+         (let* ((req (read-request stream))
+                (method (getf req :method))
+                (path (getf req :path))
+                (query (getf req :query))
+                (headers (getf req :headers))
+                (body-json (getf req :body-json)))
+           (when req
+             (let ((agent (cdr (assoc "x-ymacs-agent" headers :test #'string-equal))))
+               ;; AUTH GATE. /ping stays open on purpose: the shell's
+               ;; declare-time liveness probe fires before any token
+               ;; exists, and /ping exposes only stamps (name + version)
+               ;; to a fire-and-forget read — no state, no eval, no text.
+               (unless (or (and path (string= path "/ping"))
+                           (token-equal-p (presented-token headers)
+                                          *control-active-token*))
+                 (fire-probe :ymacs-control-auth :method method :path path
+                             :agent agent :granted nil)
+                 (write-response stream 401
+                                 "{\"ok\":false,\"error\":\"unauthorized\"}"
+                                 "Unauthorized")
+                 (return-from handle-client))
+               (let ((response
+                       (handler-case
+                           (cond
+                             ((getf req :oversized)
+                              (json-encode-response
+                               `(("ok" . nil) ("error" . "request body too large"))))
+                             ((cdr (assoc "__parse_error" body-json :test #'string=))
+                              (json-encode-response `(("ok" . nil) ("error" . "bad request json"))))
+                             ((and (string= method "GET") (string= path "/ping"))
+                              (json-encode-response `(("ok" . t) ("app_name" . "ymacs") ("document_version" . ,(document-version)))))
+                             ((and (string= method "GET") (string= path "/pane/doc"))
+                              (json-encode-response (document-schema)))
+                             ((and (string= method "GET") (string= path "/pane/ymacs"))
+                              ;; The ONE rail pane: views multiplex here.
+                              ;; The per-view routes below stay as debuggable
+                              ;; sub-views of it, never as declared panes.
+                              (json-encode-response (sidebar-pane-schema)))
+                             ((and (string= method "GET") (string= path "/pane/buffers"))
+                              (json-encode-response (buffers-schema)))
+                             ((and (string= method "GET") (or (string= path "/pane/which-key") (string= path "/pane/whichkey")))
+                              (json-encode-response (which-key-schema query)))
+                             ((and (string= method "GET") (string= path "/pane/outline"))
+                              (json-encode-response (outline-schema)))
+                             ((and (string= method "GET") (string= path "/pane/settings"))
+                              (json-encode-response (settings-pane-schema)))
+                             ((and (string= method "POST") (string= path "/open"))
+                              (let ((*control-request-agent* agent))
+                                (let* ((raw (cdr (assoc "path" body-json :test #'string=)))
+                                       (result (when raw (ignore-errors (open-file-buffer (pathname raw))))))
+                                  (fire-probe :ymacs-open :agent *control-request-agent* :path raw)
+                                  (if result
+                                      (json-encode-response `(("ok" . t) ("id" . ,(buffer-id result)) ("document_version" . ,(document-version))))
+                                      (json-encode-response `(("ok" . nil) ("error" . "open failed")))))))
+                             ((and (string= method "POST") (string= path "/action"))
+                              (let ((*control-request-agent* agent))
+                                (let ((reply (handle-action body-json)))
+                                  (json-encode-response reply))))
+                             (t (json-encode-response `(("ok" . nil) ("error" . "not found")))))
+                         (error (e) (json-encode-response `(("ok" . nil) ("error" . ,(princ-to-string e))))))))
+                 (fire-probe :ymacs-control-request :method method :path path
+                             :agent agent
+                             :latency-us (round (* 1000000 (/ (- (get-internal-real-time) start) internal-time-units-per-second))))
+                 (write-response stream 200 response)))))
       (ignore-errors (close stream)))))
 
 ;;;; NOTE: parse-flat-json is SUPERSEDED on ingress (json-parse owns
@@ -451,13 +627,13 @@ still validate. Reachable book: override-or-default, strictly."
     ((vectorp obj) (json-value-encode obj))
     (t (json-value-encode obj))))
 
-(defun write-response (stream status body)
+(defun write-response (stream status body &optional (reason "OK"))
   ;; Content-Length counts UTF-8 BYTES on the wire, not characters:
   ;; document schemas carry emoji labels (💾 ⚙ 🗂 ⌨), 1 char = 4 bytes.
   ;; (length body) under-counts and truncates every schema fetch.
   (write-bytes stream
-               (format nil "HTTP/1.1 ~a OK~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
-          status #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)))
+               (format nil "HTTP/1.1 ~a ~a~C~CContent-Type: application/json~C~CContent-Length: ~a~C~CConnection: close~C~C~C~C~a"
+          status reason #\Return #\Newline #\Return #\Newline (utf8-byte-length body) #\Return #\Newline #\Return #\Newline #\Return #\Newline body)))
 
 (defun document-schema-widgets (base)
   "BASE alone: the palette is a SURFACE now (spec-primitives S3, the
@@ -773,7 +949,12 @@ host rejects nulls: the 2026-09-04 ribbon lesson)."
        ;; The headless verb: ymacs --eval posts here (main.lisp CLI).
        ;; v0.1.x had ymacs-verb-eval but NO arm — every --eval silently
        ;; no-opped. Agents drive ymacs through this door; it must answer
-       ;; with the result, not a generic ok.
+       ;; with the result, not a generic ok. Every execution is probed
+       ;; with its X-Ymacs-Agent provenance — behind the auth gate this
+       ;; is the one arm worth an audit line of its own.
+       (fire-probe :ymacs-eval :agent *control-request-agent*
+                   :form (subseq (or (cdr (assoc "form" body-json :test #'string=)) "")
+                                 0 (min 400 (length (or (cdr (assoc "form" body-json :test #'string=)) "")))))
        (let* ((form-string (cdr (assoc "form" body-json :test #'string=)))
               (form (and form-string
                          ;; Read in the ymacs package: a headless form must
